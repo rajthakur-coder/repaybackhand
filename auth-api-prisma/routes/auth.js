@@ -80,10 +80,8 @@ router.post(
   }
 );
 
-// Login
-const getRealIP = (req) =>
-  req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.connection.remoteAddress;
 
+// Login
 router.post(
   '/login',
   [
@@ -95,7 +93,7 @@ router.post(
     if (!errors.isEmpty())
       return res.status(422).json({ success: false, message: errors.array()[0].msg });
 
-    const { email, password } = req.body;
+    const { email, password, latitude, longitude } = req.body;
     const agent = useragent.parse(req.headers['user-agent']);
 
     if (agent.isBot) return res.status(400).json({ message: 'Unidentified User Agent' });
@@ -145,19 +143,6 @@ router.post(
 
       if (user.status !== 'active') return res.status(403).json({ message: 'Account not active' });
 
-      // Get user's IP & geolocation
-      const ip = getRealIP(req);
-      let latitude = null;
-      let longitude = null;
-
-      try {
-        const response = await axios.get(`http://ip-api.com/json/${ip}`);
-        latitude = response.data.lat || null;
-        longitude = response.data.lon || null;
-      } catch (e) {
-        console.warn('Could not fetch geolocation for IP:', ip);
-      }
-
       const token = jwt.sign(
         {
           id: user.id,
@@ -189,6 +174,7 @@ router.post(
     }
   }
 );
+
 
 
 
