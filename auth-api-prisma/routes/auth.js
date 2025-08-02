@@ -3,7 +3,7 @@ const { body, validationResult } = require('express-validator');
 const useragent = require('useragent');
 const bcrypt = require('bcrypt');
 const { PrismaClient } = require('@prisma/client');
-const { sendOtpRegistration } = require('../utils/helper'); 
+const { sendOtpRegistration } = require('../utils/helper');
 const { randomUUID } = require('../utils/helper');
 const jwt = require('jsonwebtoken');
 
@@ -46,7 +46,7 @@ router.post(
       const emailOtp = Math.floor(100000 + Math.random() * 900000).toString();
       const mobileOtp = Math.floor(100000 + Math.random() * 900000).toString();
 
-     
+
       await sendOtpRegistration(email, 'email');
       console.log('Generated OTP for Email:', emailOtp);
       console.log('Generated OTP for Mobile:', mobileOtp);
@@ -61,7 +61,9 @@ router.post(
           email_otp: emailOtp,
           mobile_otp: mobileOtp,
           is_mobile_verified: false,
-          is_email_verified: false
+          is_email_verified: false,
+          created_at: new Date(),
+          updated_at: new Date()
         }
       });
 
@@ -82,26 +84,37 @@ router.post(
 
 
 // Login
+function getClientIp(req) {
+  return (
+    req.headers['x-forwarded-for'] ||
+    req.connection.remoteAddress ||
+    req.socket?.remoteAddress ||
+    req.connection?.socket?.remoteAddress ||
+    null
+  );
+}
+
 router.post(
   '/login',
   [
-    body('email').isEmail(),
-    body('password').notEmpty()
+    body('email').isEmail().withMessage('Invalid email'),
+    body('password').notEmpty().withMessage('Password is required'),
   ],
   async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty())
-      return res.status(422).json({ success: false, message: errors.array()[0].msg });
+    if (!errors.isEmpty()) return res.status(422).json({ success: false, message: errors.array()[0].msg });
 
     const { email, password, latitude, longitude } = req.body;
     const agent = useragent.parse(req.headers['user-agent']);
+    const ip = getClientIp(req);
 
     if (agent.isBot) return res.status(400).json({ message: 'Unidentified User Agent' });
 
     try {
       let user = await prisma.users.findUnique({ where: { email } });
-      let tempUser = await prisma.temp_users.findUnique({ where: { email } });
+      const tempUser = await prisma.temp_users.findUnique({ where: { email } });
 
+      // If temp user exists
       if (tempUser) {
         if (tempUser.is_mobile_verified !== 1) {
           await Helper.sendOtpRegistration(email, 'mobile');
@@ -120,6 +133,9 @@ router.post(
             email: tempUser.email,
             password: tempUser.password,
             mobile_no: tempUser.mobile_no,
+            role: 'user',
+            created_at: new Date(),
+            updated_at: new Date()
           }
         });
 
@@ -129,7 +145,9 @@ router.post(
             balance: 0,
             lien_balance: 0,
             free_balance: 100,
-            balance_expire_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            balance_expire_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            created_at: new Date(),
+            updated_at: new Date()
           }
         });
 
@@ -139,7 +157,24 @@ router.post(
       if (!user) return res.status(404).json({ message: 'User not found' });
 
       const valid = await bcrypt.compare(password, user.password);
-      if (!valid) return res.status(401).json({ message: 'Invalid credentials' });
+      if (!valid) {
+        await prisma.login_history.create({
+          data: {
+            user_id: user.uuid,
+            device: agent.device.toString(),
+            operating_system: agent.os.toString(),
+            browser: agent.toAgent(),
+            ip_address: ip,
+            latitude: latitude ? parseFloat(latitude) : null,
+            longitude: longitude ? parseFloat(longitude) : null,
+            status: 'Failed',
+            user_agent: req.headers['user-agent'],
+            created_at: new Date(),
+            updated_at: new Date()
+          }
+        });
+        return res.status(401).json({ message: 'Invalid credentials' });
+      }
 
       if (user.status !== 'active') return res.status(403).json({ message: 'Account not active' });
 
@@ -154,6 +189,22 @@ router.post(
         { expiresIn: '1d' }
       );
 
+      await prisma.login_history.create({
+        data: {
+          user_id: user.uuid,
+          device: agent.device.toString(),
+          operating_system: agent.os.toString(),
+          browser: agent.toAgent(),
+          ip_address: ip,
+          latitude: latitude ? parseFloat(latitude) : null,
+          longitude: longitude ? parseFloat(longitude) : null,
+          status: 'Success',
+          user_agent: req.headers['user-agent'],
+          created_at: new Date(),
+          updated_at: new Date()
+        }
+      });
+
       return res.status(200).json({
         success: true,
         token,
@@ -167,7 +218,7 @@ router.post(
       });
 
     } catch (err) {
-      console.error(err);
+      console.error('Login error:', err);
       res.status(500).json({ message: 'Server error' });
     } finally {
       await prisma.$disconnect();
@@ -209,7 +260,9 @@ router.post('/verify-otp', async (req, res) => {
         password: tempUser.password,
         status: 'active',
         otp_status: 'verified',
-        role: 'user'
+        role: 'user',
+        created_at: new Date(),
+        updated_at: new Date()
       },
     });
 
@@ -220,7 +273,9 @@ router.post('/verify-otp', async (req, res) => {
         balance: 0.0,
         lien_balance: 0.0,
         free_balance: 100.0,
-        balance_expire_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), 
+        balance_expire_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        created_at: new Date(),
+        updated_at: new Date()
       },
     });
 
