@@ -6,6 +6,8 @@ const { PrismaClient } = require('@prisma/client');
 const { sendOtpRegistration } = require('../utils/helper');
 const { randomUUID } = require('../utils/helper');
 const jwt = require('jsonwebtoken');
+// const { randomUUID } = require('crypto');
+
 
 
 
@@ -42,28 +44,30 @@ router.post(
 
       const hashed = await bcrypt.hash(password, 10);
 
-      //  Generate OTPs
-      const emailOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      const mobileOtp = Math.floor(100000 + Math.random() * 900000).toString();
-
-
-      await sendOtpRegistration(email, 'email');
-      console.log('Generated OTP for Email:', emailOtp);
-      console.log('Generated OTP for Mobile:', mobileOtp);
-
-      //  Create temp user with OTPs
+      // 1. Create temp user first
       const tempUser = await prisma.temp_users.create({
         data: {
           name,
           email,
           password: hashed,
           mobile_no,
-          email_otp: emailOtp,
-          mobile_otp: mobileOtp,
           is_mobile_verified: false,
           is_email_verified: false,
           created_at: new Date(),
           updated_at: new Date()
+        }
+      });
+
+      // 2. Generate and save OTPs after tempUser created
+      const emailOtp = await sendOtpRegistration(email, 'email', tempUser.id);
+      const mobileOtp = await sendOtpRegistration(mobile_no, 'mobile', tempUser.id);
+
+      // 3. Update OTPs in temp_users table
+      await prisma.temp_users.update({
+        where: { id: tempUser.id },
+        data: {
+          email_otp: emailOtp,
+          mobile_otp: mobileOtp
         }
       });
 
@@ -117,18 +121,21 @@ router.post(
       // If temp user exists
       if (tempUser) {
         if (tempUser.is_mobile_verified !== 1) {
-          await Helper.sendOtpRegistration(email, 'mobile');
+          // await Helper.sendOtpRegistration(email, 'mobile');
+          await Helper.sendOtpRegistration(mobile_no, 'mobile', tempUser.id);
           return res.status(200).json({ verify: 'mobile', info: Helper.maskMobile(tempUser.mobile_no) });
         }
 
         if (tempUser.is_email_verified !== 1) {
-          await Helper.sendOtpRegistration(email, 'email');
+          // await Helper.sendOtpRegistration(email, 'email');
+          await Helper.sendOtpRegistration(email, 'email', tempUser.id);
+
           return res.status(200).json({ verify: 'email', info: Helper.maskEmail(tempUser.email) });
         }
 
         user = await prisma.users.create({
           data: {
-            uuid: Helper.randomUUID(),
+            uuid: randomUUID(),
             name: tempUser.name,
             email: tempUser.email,
             password: tempUser.password,
@@ -228,7 +235,6 @@ router.post(
 
 
 
-
 router.post('/verify-otp', async (req, res) => {
   const { email, emailOtp, mobileOtp } = req.body;
 
@@ -237,20 +243,41 @@ router.post('/verify-otp', async (req, res) => {
   }
 
   try {
+    // 1. Find temp user
     const tempUser = await prisma.temp_users.findUnique({ where: { email } });
-
     if (!tempUser) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: 'Temporary user not found' });
     }
 
-    const isEmailValid = tempUser.email_otp === emailOtp;
-    const isMobileValid = tempUser.mobile_otp === mobileOtp;
+    const tempUserId = tempUser.id;
 
-    if (!isEmailValid || !isMobileValid) {
-      return res.status(400).json({ message: 'Invalid OTP(s)' });
+    // 2. Fetch valid OTP records from otp_verifications table
+    const now = new Date();
+    const otpRecords = await prisma.otp_verifications.findMany({
+      where: {
+        user_id: tempUserId,
+        is_verified: false,
+        expires_at: { gt: now }
+      }
+    });
+
+    const emailOtpRecord = otpRecords.find(otp => otp.otp === parseInt(emailOtp));
+    const mobileOtpRecord = otpRecords.find(otp => otp.otp === parseInt(mobileOtp));
+
+
+    if (!emailOtpRecord || !mobileOtpRecord) {
+      return res.status(400).json({ message: 'Invalid or expired OTP(s)' });
     }
 
-    // Insert into users table
+    // 3. Mark OTPs as verified
+    await prisma.otp_verifications.updateMany({
+      where: {
+        id: { in: [emailOtpRecord.id, mobileOtpRecord.id] }
+      },
+      data: { is_verified: true }
+    });
+
+    // 4. Move data to users table
     const newUser = await prisma.users.create({
       data: {
         uuid: randomUUID(),
@@ -263,10 +290,10 @@ router.post('/verify-otp', async (req, res) => {
         role: 'user',
         created_at: new Date(),
         updated_at: new Date()
-      },
+      }
     });
 
-    // Create wallet for new user
+    // 5. Create wallet
     await prisma.wallets.create({
       data: {
         user_id: newUser.id,
@@ -276,24 +303,24 @@ router.post('/verify-otp', async (req, res) => {
         balance_expire_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
         created_at: new Date(),
         updated_at: new Date()
-      },
+      }
     });
 
-    // Remove temp user
-    await prisma.temp_users.delete({ where: { email } });
+    // 6. Delete temp user
+    await prisma.temp_users.delete({ where: { id: tempUserId } });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: 'User verified, registered, and wallet created successfully.',
+      message: 'User verified, registered, and wallet created successfully.'
     });
+
   } catch (err) {
     console.error('OTP verification error:', err);
-    res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: 'Internal server error' });
   } finally {
     await prisma.$disconnect();
   }
 });
-
 
 
 
