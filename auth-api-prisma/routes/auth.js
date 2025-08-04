@@ -6,7 +6,6 @@ const { PrismaClient } = require('@prisma/client');
 const { sendOtpRegistration } = require('../utils/helper');
 const { randomUUID } = require('../utils/helper');
 const jwt = require('jsonwebtoken');
-// const { randomUUID } = require('crypto');
 
 
 
@@ -19,8 +18,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // Register
-router.post(
-  '/register',
+router.post('/register',
   [
     body('name').notEmpty(),
     body('email').isEmail(),
@@ -98,8 +96,7 @@ function getClientIp(req) {
   );
 }
 
-router.post(
-  '/login',
+router.post('/login',
   [
     body('email').isEmail().withMessage('Invalid email'),
     body('password').notEmpty().withMessage('Password is required'),
@@ -121,14 +118,12 @@ router.post(
       // If temp user exists
       if (tempUser) {
         if (tempUser.is_mobile_verified !== 1) {
-          // await Helper.sendOtpRegistration(email, 'mobile');
-          await Helper.sendOtpRegistration(mobile_no, 'mobile', tempUser.id);
+          await Helper.sendOtpRegistration(tempUser.mobile_no, 'mobile', tempUser.id);
           return res.status(200).json({ verify: 'mobile', info: Helper.maskMobile(tempUser.mobile_no) });
         }
 
         if (tempUser.is_email_verified !== 1) {
-          // await Helper.sendOtpRegistration(email, 'email');
-          await Helper.sendOtpRegistration(email, 'email', tempUser.id);
+          await Helper.sendOtpRegistration(tempUser.email, 'email', tempUser.id);
 
           return res.status(200).json({ verify: 'email', info: Helper.maskEmail(tempUser.email) });
         }

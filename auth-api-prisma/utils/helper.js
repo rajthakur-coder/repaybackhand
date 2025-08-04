@@ -2,7 +2,6 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 module.exports = {
-  // randomUUID: () => Math.random().toString(36).substr(2, 9),
   randomUUID: () => Math.floor(100000 + Math.random() * 900000),
 
   maskMobile: (mobile) => `****${mobile.slice(-4)}`,
