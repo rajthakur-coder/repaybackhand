@@ -95,7 +95,6 @@ function getClientIp(req) {
     null
   );
 }
-
 router.post('/login',
   [
     body('email').isEmail().withMessage('Invalid email'),
@@ -222,9 +221,11 @@ router.post('/login',
     } catch (err) {
       console.error('Login error:', err);
       res.status(500).json({ message: 'Server error' });
-    } finally {
-      await prisma.$disconnect();
-    }
+    } process.on('SIGINT', async () => {
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
   }
 );
 
