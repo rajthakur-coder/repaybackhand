@@ -211,37 +211,44 @@ router.post(
       }
 
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          statusCode: 0,
-          message: 'User not found',
-        });
-      }
+  return res.status(401).json({
+    success: false,
+    statusCode: 0,
+    message: 'Invalid email address',
+  });
+}
 
-      const valid = await bcrypt.compare(password, user.password);
-      if (!valid) {
-        await prisma.login_history.create({
-          data: {
-            user_id: user.uuid,
-            device: agent.device.toString(),
-            operating_system: agent.os.toString(),
-            browser: agent.toAgent(),
-            ip_address: ip,
-            latitude: latitude ? parseFloat(latitude) : null,
-            longitude: longitude ? parseFloat(longitude) : null,
-            status: 'Failed',
-            user_agent: req.headers['user-agent'],
-            created_at: new Date(),
-            updated_at: new Date(),
-          },
-        });
+const valid = await bcrypt.compare(password, user.password);
+if (!valid) {
+  await prisma.login_history.create({
+    data: {
+      user_id: user.uuid,
+      device: agent.device.toString(),
+      operating_system: agent.os.toString(),
+      browser: agent.toAgent(),
+      ip_address: ip,
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
+      status: 'Failed',
+      user_agent: req.headers['user-agent'],
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
+  });
 
-        return res.status(401).json({
-          success: false,
-          statusCode: 0,
-          message: 'Invalid credentials',
-        });
-      }
+  return res.status(401).json({
+    success: false,
+    statusCode: 0,
+    message: 'Incorrect password',
+  });
+}
+
+      //   return res.status(401).json({
+      //     success: false,
+      //     statusCode: 0,
+      //     message: 'Invalid credentials',
+      //   });
+      // }
 
       if (user.status !== 'active') {
         return res.status(403).json({
@@ -338,9 +345,11 @@ router.post(
     }
 
     const { email, emailOtp, mobileOtp } = req.body;
+    const now = new Date();
 
     try {
       const tempUser = await prisma.temp_users.findUnique({ where: { email } });
+
       if (!tempUser) {
         return res.status(404).json({
           success: false,
@@ -349,26 +358,73 @@ router.post(
         });
       }
 
-      const now = new Date();
-      const otpRecords = await prisma.otp_verifications.findMany({
+      // ✅ Email OTP Validation
+      const emailOtpRecord = await prisma.otp_verifications.findFirst({
         where: {
           user_id: tempUser.id,
-          is_verified: false,
-          expires_at: { gt: now }
+          type: 'email',
+          otp: parseInt(emailOtp)
         }
       });
 
-      const emailOtpRecord = otpRecords.find(otp => otp.otp === parseInt(emailOtp));
-      const mobileOtpRecord = otpRecords.find(otp => otp.otp === parseInt(mobileOtp));
-
-      if (!emailOtpRecord || !mobileOtpRecord) {
+      if (!emailOtpRecord) {
         return res.status(400).json({
           success: false,
           statusCode: 0,
-          message: 'Invalid or expired OTP(s)'
+          message: 'Invalid Email OTP'
         });
       }
 
+      if (emailOtpRecord.expires_at < now) {
+        return res.status(400).json({
+          success: false,
+          statusCode: 0,
+          message: 'Email OTP expired'
+        });
+      }
+
+      if (emailOtpRecord.is_verified) {
+        return res.status(400).json({
+          success: false,
+          statusCode: 0,
+          message: 'Email OTP already verified'
+        });
+      }
+
+      // ✅ Mobile OTP Validation
+      const mobileOtpRecord = await prisma.otp_verifications.findFirst({
+        where: {
+          user_id: tempUser.id,
+          type: 'mobile',
+          otp: parseInt(mobileOtp)
+        }
+      });
+
+      if (!mobileOtpRecord) {
+        return res.status(400).json({
+          success: false,
+          statusCode: 0,
+          message: 'Invalid Mobile OTP'
+        });
+      }
+
+      if (mobileOtpRecord.expires_at < now) {
+        return res.status(400).json({
+          success: false,
+          statusCode: 0,
+          message: 'Mobile OTP expired'
+        });
+      }
+
+      if (mobileOtpRecord.is_verified) {
+        return res.status(400).json({
+          success: false,
+          statusCode: 0,
+          message: 'Mobile OTP already verified'
+        });
+      }
+
+      // ✅ Mark OTPs as verified
       await prisma.otp_verifications.updateMany({
         where: {
           id: { in: [emailOtpRecord.id, mobileOtpRecord.id] }
@@ -376,6 +432,20 @@ router.post(
         data: { is_verified: true }
       });
 
+      // ✅ Check if user already created
+      const existingUser = await prisma.users.findUnique({
+        where: { email: tempUser.email }
+      });
+
+      if (existingUser) {
+        return res.status(409).json({
+          success: false,
+          statusCode: 0,
+          message: 'User already verified'
+        });
+      }
+
+      // ✅ Create new user
       const newUser = await prisma.users.create({
         data: {
           uuid: randomUUID(),
@@ -391,6 +461,7 @@ router.post(
         }
       });
 
+      // ✅ Create wallet for user
       await prisma.wallets.create({
         data: {
           user_id: newUser.id,
@@ -403,6 +474,7 @@ router.post(
         }
       });
 
+      // ✅ Delete temp user
       await prisma.temp_users.delete({ where: { id: tempUser.id } });
 
       return res.status(200).json({
@@ -423,6 +495,7 @@ router.post(
     }
   }
 );
+
 
 
 module.exports = router;
