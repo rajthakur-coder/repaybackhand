@@ -1,27 +1,29 @@
 const { PrismaClient } = require('@prisma/client');
+const useragent = require('useragent');
 const prisma = new PrismaClient();
 
-module.exports = {
-  randomUUID: () => Math.floor(100000 + Math.random() * 900000),
+// OTP Generator
+const randomUUID = () => Math.floor(100000 + Math.random() * 900000);
 
-  maskMobile: (mobile) => `****${mobile.slice(-4)}`,
+// Mobile Masking
+const maskMobile = (mobile) => `****${mobile.slice(-4)}`;
 
-  maskEmail: (email) => {
-    const [local, domain] = email.split('@');
-    return `${local.slice(0, 2)}****@${domain}`;
-  },
+//  Email Masking
+const maskEmail = (email) => {
+  const [local, domain] = email.split('@');
+  return `${local.slice(0, 2)}****@${domain}`;
+};
 
- sendOtpRegistration: async (receiver, type, user_id) => {
+// Send OTP and Save to DB
+const sendOtpRegistration = async (receiver, type, user_id) => {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   console.log(`OTP for ${receiver} [${type}] is: ${otp}`);
-  
 
   await prisma.otp_verifications.create({
-    
     data: {
       user_id: user_id,
       otp: parseInt(otp),
-      type: type, // "email" or "mobile"
+      type: type, 
       expires_at: new Date(Date.now() + 5 * 60 * 1000),
       is_verified: false,
       created_at: new Date(),
@@ -30,8 +32,25 @@ module.exports = {
   });
 
   return otp;
-}
+};
 
-}
+//  Get Client IP Address
+const getClientIp = (req) => {
+  return (
+    req.headers['x-forwarded-for'] ||
+    req.connection?.remoteAddress ||
+    req.socket?.remoteAddress ||
+    req.connection?.socket?.remoteAddress ||
+    null
+  );
+};
 
+module.exports = {
+  randomUUID,
+  maskMobile,
+  maskEmail,
+  sendOtpRegistration,
+  getClientIp,
+  useragent
+};
 

@@ -1,18 +1,19 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const useragent = require('useragent');
 const bcrypt = require('bcrypt');
 const { PrismaClient } = require('@prisma/client');
-const { sendOtpRegistration } = require('../utils/helper');
-const { randomUUID } = require('../utils/helper');
 const jwt = require('jsonwebtoken');
+const { generateToken, verifyToken } = require('../utils/jwt');
+const {
+  randomUUID,
+  maskEmail,
+  maskMobile,
+  sendOtpRegistration,
+  getClientIp,
+  useragent,
+  Helper
+} = require('../utils/helper');
 
-
-
-
-
-const { generateToken } = require('../utils/jwt');
-const Helper = require('../utils/helper');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -20,27 +21,27 @@ const prisma = new PrismaClient();
 // Register
 router.post('/register',
   [
-  body('name')
-    .notEmpty().withMessage('Name is required'),
+    body('name')
+      .notEmpty().withMessage('Name is required'),
 
-  body('email')
-    .notEmpty().withMessage('Email is required')
-    .isEmail().withMessage('Invalid email format')
-    .normalizeEmail(),
+    body('email')
+      .notEmpty().withMessage('Email is required')
+      .isEmail().withMessage('Invalid email format')
+      .normalizeEmail(),
 
-  body('password')
-    .notEmpty().withMessage('Password is required')
-    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
-    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
-    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
-    .matches(/[0-9]/).withMessage('Password must contain at least one digit')
-    .matches(/[@$!%*?&]/).withMessage('Password must contain at least one special character'),
+    body('password')
+      .notEmpty().withMessage('Password is required')
+      .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+      .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+      .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+      .matches(/[0-9]/).withMessage('Password must contain at least one digit')
+      .matches(/[@$!%*?&]/).withMessage('Password must contain at least one special character'),
 
-  body('mobile_no')
-    .notEmpty().withMessage('Mobile number is required')
-    .isLength({ min: 10, max: 10 }).withMessage('Mobile number must be exactly 10 digits')
-    .matches(/^[0-9]{10}$/).withMessage('Mobile number must contain only digits'),
-],
+    body('mobile_no')
+      .notEmpty().withMessage('Mobile number is required')
+      .isLength({ min: 10, max: 10 }).withMessage('Mobile number must be exactly 10 digits')
+      .matches(/^[0-9]{10}$/).withMessage('Mobile number must contain only digits'),
+  ],
 
   async (req, res) => {
     const errors = validationResult(req);
@@ -92,13 +93,16 @@ router.post('/register',
           mobile_otp: mobileOtp
         }
       });
-
+      const tempUserToken = generateToken({ id: tempUser.id, email: tempUser.email });
       return res.status(201).json({
         success: true,
         statusCode: 1,
         message: 'OTP sent for email and mobile verification',
-        tempUserId: tempUser.id
+        tempUserId: tempUserToken,
+        Email: maskEmail(tempUser.email),
+        Mobile: maskMobile(tempUser.mobile_no),
       });
+
 
     } catch (err) {
       console.error('Register error:', err);
@@ -113,18 +117,9 @@ router.post('/register',
   }
 );
 
+
+
 // Login
-
-function getClientIp(req) {
-  return (
-    req.headers['x-forwarded-for'] ||
-    req.connection.remoteAddress ||
-    req.socket?.remoteAddress ||
-    req.connection?.socket?.remoteAddress ||
-    null
-  );
-}
-
 router.post(
   '/login',
   [
@@ -164,7 +159,7 @@ router.post(
           await Helper.sendOtpRegistration(tempUser.mobile_no, 'mobile', tempUser.id);
           return res.status(200).json({
             success: false,
-            statusCode: 0,
+            statusCode: 5,
             verify: 'mobile',
             message: 'Mobile verification pending',
             info: Helper.maskMobile(tempUser.mobile_no),
@@ -175,7 +170,7 @@ router.post(
           await Helper.sendOtpRegistration(tempUser.email, 'email', tempUser.id);
           return res.status(200).json({
             success: false,
-            statusCode: 0,
+            statusCode: 5,
             verify: 'email',
             message: 'Email verification pending',
             info: Helper.maskEmail(tempUser.email),
@@ -210,45 +205,40 @@ router.post(
         await prisma.temp_users.delete({ where: { id: tempUser.id } });
       }
 
+
       if (!user) {
-  return res.status(401).json({
-    success: false,
-    statusCode: 0,
-    message: 'Invalid email address',
-  });
-}
+        return res.status(401).json({
+          success: false,
+          statusCode: 0,
+          message: 'Invalid email address',
+        });
+      }
 
-const valid = await bcrypt.compare(password, user.password);
-if (!valid) {
-  await prisma.login_history.create({
-    data: {
-      user_id: user.uuid,
-      device: agent.device.toString(),
-      operating_system: agent.os.toString(),
-      browser: agent.toAgent(),
-      ip_address: ip,
-      latitude: latitude ? parseFloat(latitude) : null,
-      longitude: longitude ? parseFloat(longitude) : null,
-      status: 'Failed',
-      user_agent: req.headers['user-agent'],
-      created_at: new Date(),
-      updated_at: new Date(),
-    },
-  });
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) {
+        await prisma.login_history.create({
+          data: {
+            user_id: user.uuid,
+            device: agent.device.toString(),
+            operating_system: agent.os.toString(),
+            browser: agent.toAgent(),
+            ip_address: ip,
+            latitude: latitude ? parseFloat(latitude) : null,
+            longitude: longitude ? parseFloat(longitude) : null,
+            status: 'Failed',
+            user_agent: req.headers['user-agent'],
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
 
-  return res.status(401).json({
-    success: false,
-    statusCode: 0,
-    message: 'Incorrect password',
-  });
-}
+        return res.status(401).json({
+          success: false,
+          statusCode: 0,
+          message: 'Incorrect password',
+        });
+      }
 
-      //   return res.status(401).json({
-      //     success: false,
-      //     statusCode: 0,
-      //     message: 'Invalid credentials',
-      //   });
-      // }
 
       if (user.status !== 'active') {
         return res.status(403).json({
@@ -258,16 +248,13 @@ if (!valid) {
         });
       }
 
-      const token = jwt.sign(
-        {
-          id: user.id,
-          uuid: user.uuid,
-          email: user.email,
-          role: user.role,
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: '1d' }
-      );
+      const token = generateToken({
+        id: user.id,
+        uuid: user.uuid,
+        email: user.email,
+        role: user.role,
+      });
+
 
       await prisma.login_history.create({
         data: {
@@ -315,14 +302,13 @@ if (!valid) {
 );
 
 
+
 // Verify OTP
 router.post(
   '/verify-otp',
   [
-    body('email')
-      .notEmpty().withMessage('Email is required')
-      .isEmail().withMessage('Invalid email format')
-      .normalizeEmail(),
+    body('tempUserId')
+      .notEmpty().withMessage('Temp User ID is required'),
 
     body('emailOtp')
       .notEmpty().withMessage('Email OTP is required')
@@ -344,13 +330,36 @@ router.post(
       });
     }
 
-    const { email, emailOtp, mobileOtp } = req.body;
+    const { tempUserId, emailOtp, mobileOtp } = req.body;
     const now = new Date();
+    let tempUser;
 
     try {
-      const tempUser = await prisma.temp_users.findUnique({ where: { email } });
+      const decoded = verifyToken(tempUserId);
+      if (!decoded || !decoded.email) {
+        return res.status(400).json({
+          success: false,
+          statusCode: 0,
+          message: 'Invalid or expired temp user token'
+        });
+      }
+
+      const id = decoded.id;
+
+
+      tempUser = await prisma.temp_users.findUnique({ where: { id } });
 
       if (!tempUser) {
+        const alreadyRegistered = await prisma.users.findUnique({ where: { email: decoded.email } });
+
+        if (alreadyRegistered) {
+          return res.status(200).json({
+            success: true,
+            statusCode: 1,
+            message: 'User already verified'
+          });
+        }
+
         return res.status(404).json({
           success: false,
           statusCode: 0,
@@ -358,7 +367,7 @@ router.post(
         });
       }
 
-      // ✅ Email OTP Validation
+      // Email OTP Validation
       const emailOtpRecord = await prisma.otp_verifications.findFirst({
         where: {
           user_id: tempUser.id,
@@ -391,7 +400,7 @@ router.post(
         });
       }
 
-      // ✅ Mobile OTP Validation
+      // Mobile OTP Validation
       const mobileOtpRecord = await prisma.otp_verifications.findFirst({
         where: {
           user_id: tempUser.id,
@@ -424,7 +433,7 @@ router.post(
         });
       }
 
-      // ✅ Mark OTPs as verified
+      // Mark both OTPs as verified
       await prisma.otp_verifications.updateMany({
         where: {
           id: { in: [emailOtpRecord.id, mobileOtpRecord.id] }
@@ -432,7 +441,7 @@ router.post(
         data: { is_verified: true }
       });
 
-      // ✅ Check if user already created
+      // Check if user already created
       const existingUser = await prisma.users.findUnique({
         where: { email: tempUser.email }
       });
@@ -445,7 +454,7 @@ router.post(
         });
       }
 
-      // ✅ Create new user
+      // Create new user
       const newUser = await prisma.users.create({
         data: {
           uuid: randomUUID(),
@@ -461,26 +470,26 @@ router.post(
         }
       });
 
-      // ✅ Create wallet for user
+      // Create wallet
       await prisma.wallets.create({
         data: {
           user_id: newUser.id,
           balance: 0.0,
           lien_balance: 0.0,
           free_balance: 100.0,
-          balance_expire_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          balance_expire_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year later
           created_at: new Date(),
           updated_at: new Date()
         }
       });
 
-      // ✅ Delete temp user
+      // Delete temporary user
       await prisma.temp_users.delete({ where: { id: tempUser.id } });
 
       return res.status(200).json({
         success: true,
         statusCode: 1,
-        message: 'User verified, registered, and wallet created successfully'
+        message: `User verified and registered successfully using ${maskMobile(tempUser.mobile_no)} and ${maskEmail(tempUser.email)}`
       });
 
     } catch (err) {
@@ -495,7 +504,5 @@ router.post(
     }
   }
 );
-
-
 
 module.exports = router;
