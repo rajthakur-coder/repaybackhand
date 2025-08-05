@@ -20,15 +20,37 @@ const prisma = new PrismaClient();
 // Register
 router.post('/register',
   [
-    body('name').notEmpty(),
-    body('email').isEmail(),
-    body('password').isLength({ min: 6 }),
-    body('mobile_no').notEmpty()
-  ],
+  body('name')
+    .notEmpty().withMessage('Name is required'),
+
+  body('email')
+    .notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Invalid email format')
+    .normalizeEmail(),
+
+  body('password')
+    .notEmpty().withMessage('Password is required')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[0-9]/).withMessage('Password must contain at least one digit')
+    .matches(/[@$!%*?&]/).withMessage('Password must contain at least one special character'),
+
+  body('mobile_no')
+    .notEmpty().withMessage('Mobile number is required')
+    .isLength({ min: 10, max: 10 }).withMessage('Mobile number must be exactly 10 digits')
+    .matches(/^[0-9]{10}$/).withMessage('Mobile number must contain only digits'),
+],
+
   async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty())
-      return res.status(422).json({ success: false, message: errors.array()[0].msg });
+    if (!errors.isEmpty()) {
+      return res.status(422).json({
+        success: false,
+        statusCode: 2,
+        message: errors.array()[0].msg
+      });
+    }
 
     const { name, email, password, mobile_no } = req.body;
 
@@ -37,12 +59,16 @@ router.post('/register',
         await prisma.users.findUnique({ where: { email } }) ||
         await prisma.temp_users.findUnique({ where: { email } });
 
-      if (existing)
-        return res.status(409).json({ success: false, message: 'Email already registered or pending verification' });
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          statusCode: 0,
+          message: 'Email already registered or pending verification'
+        });
+      }
 
       const hashed = await bcrypt.hash(password, 10);
 
-      // 1. Create temp user first
       const tempUser = await prisma.temp_users.create({
         data: {
           name,
@@ -56,11 +82,9 @@ router.post('/register',
         }
       });
 
-      // 2. Generate and save OTPs after tempUser created
       const emailOtp = await sendOtpRegistration(email, 'email', tempUser.id);
       const mobileOtp = await sendOtpRegistration(mobile_no, 'mobile', tempUser.id);
 
-      // 3. Update OTPs in temp_users table
       await prisma.temp_users.update({
         where: { id: tempUser.id },
         data: {
@@ -71,21 +95,26 @@ router.post('/register',
 
       return res.status(201).json({
         success: true,
+        statusCode: 1,
         message: 'OTP sent for email and mobile verification',
         tempUserId: tempUser.id
       });
 
-    } catch (e) {
-      console.error(e);
-      return res.status(500).json({ success: false, message: 'Server error' });
+    } catch (err) {
+      console.error('Register error:', err);
+      return res.status(500).json({
+        success: false,
+        statusCode: 0,
+        message: 'Internal server error'
+      });
     } finally {
       await prisma.$disconnect();
     }
   }
 );
 
-
 // Login
+
 function getClientIp(req) {
   return (
     req.headers['x-forwarded-for'] ||
@@ -95,36 +124,62 @@ function getClientIp(req) {
     null
   );
 }
-router.post('/login',
+
+router.post(
+  '/login',
   [
     body('email').isEmail().withMessage('Invalid email'),
     body('password').notEmpty().withMessage('Password is required'),
+    body('latitude').optional().isFloat({ min: -90, max: 90 }).withMessage('Invalid latitude'),
+    body('longitude').optional().isFloat({ min: -180, max: 180 }).withMessage('Invalid longitude'),
   ],
   async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(422).json({ success: false, message: errors.array()[0].msg });
+    if (!errors.isEmpty()) {
+      return res.status(422).json({
+        success: false,
+        statusCode: 2,
+        message: errors.array()[0].msg,
+      });
+    }
 
     const { email, password, latitude, longitude } = req.body;
     const agent = useragent.parse(req.headers['user-agent']);
     const ip = getClientIp(req);
 
-    if (agent.isBot) return res.status(400).json({ message: 'Unidentified User Agent' });
+    if (agent.isBot) {
+      return res.status(400).json({
+        success: false,
+        statusCode: 0,
+        message: 'Unidentified User Agent',
+      });
+    }
 
     try {
       let user = await prisma.users.findUnique({ where: { email } });
       const tempUser = await prisma.temp_users.findUnique({ where: { email } });
 
-      // If temp user exists
       if (tempUser) {
         if (tempUser.is_mobile_verified !== 1) {
           await Helper.sendOtpRegistration(tempUser.mobile_no, 'mobile', tempUser.id);
-          return res.status(200).json({ verify: 'mobile', info: Helper.maskMobile(tempUser.mobile_no) });
+          return res.status(200).json({
+            success: false,
+            statusCode: 0,
+            verify: 'mobile',
+            message: 'Mobile verification pending',
+            info: Helper.maskMobile(tempUser.mobile_no),
+          });
         }
 
         if (tempUser.is_email_verified !== 1) {
           await Helper.sendOtpRegistration(tempUser.email, 'email', tempUser.id);
-
-          return res.status(200).json({ verify: 'email', info: Helper.maskEmail(tempUser.email) });
+          return res.status(200).json({
+            success: false,
+            statusCode: 0,
+            verify: 'email',
+            message: 'Email verification pending',
+            info: Helper.maskEmail(tempUser.email),
+          });
         }
 
         user = await prisma.users.create({
@@ -136,8 +191,8 @@ router.post('/login',
             mobile_no: tempUser.mobile_no,
             role: 'user',
             created_at: new Date(),
-            updated_at: new Date()
-          }
+            updated_at: new Date(),
+          },
         });
 
         await prisma.wallets.create({
@@ -148,14 +203,20 @@ router.post('/login',
             free_balance: 100,
             balance_expire_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
             created_at: new Date(),
-            updated_at: new Date()
-          }
+            updated_at: new Date(),
+          },
         });
 
         await prisma.temp_users.delete({ where: { id: tempUser.id } });
       }
 
-      if (!user) return res.status(404).json({ message: 'User not found' });
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          statusCode: 0,
+          message: 'User not found',
+        });
+      }
 
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) {
@@ -171,20 +232,31 @@ router.post('/login',
             status: 'Failed',
             user_agent: req.headers['user-agent'],
             created_at: new Date(),
-            updated_at: new Date()
-          }
+            updated_at: new Date(),
+          },
         });
-        return res.status(401).json({ message: 'Invalid credentials' });
+
+        return res.status(401).json({
+          success: false,
+          statusCode: 0,
+          message: 'Invalid credentials',
+        });
       }
 
-      if (user.status !== 'active') return res.status(403).json({ message: 'Account not active' });
+      if (user.status !== 'active') {
+        return res.status(403).json({
+          success: false,
+          statusCode: 0,
+          message: 'Account not active',
+        });
+      }
 
       const token = jwt.sign(
         {
           id: user.id,
           uuid: user.uuid,
           email: user.email,
-          role: user.role
+          role: user.role,
         },
         process.env.JWT_SECRET,
         { expiresIn: '1d' }
@@ -202,122 +274,155 @@ router.post('/login',
           status: 'Success',
           user_agent: req.headers['user-agent'],
           created_at: new Date(),
-          updated_at: new Date()
-        }
+          updated_at: new Date(),
+        },
       });
 
       return res.status(200).json({
         success: true,
+        statusCode: 1,
         token,
         user: {
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
         },
         location: { latitude, longitude },
-        device: agent.toString()
+        device: agent.toString(),
+        message: 'Login successful',
       });
-
     } catch (err) {
       console.error('Login error:', err);
-      res.status(500).json({ message: 'Server error' });
-    } process.on('SIGINT', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+      res.status(500).json({
+        success: false,
+        statusCode: 0,
+        message: 'Server error',
+      });
+    }
 
+    process.on('SIGINT', async () => {
+      await prisma.$disconnect();
+      process.exit(0);
+    });
   }
 );
 
 
+// Verify OTP
+router.post(
+  '/verify-otp',
+  [
+    body('email')
+      .notEmpty().withMessage('Email is required')
+      .isEmail().withMessage('Invalid email format')
+      .normalizeEmail(),
 
-router.post('/verify-otp', async (req, res) => {
-  const { email, emailOtp, mobileOtp } = req.body;
+    body('emailOtp')
+      .notEmpty().withMessage('Email OTP is required')
+      .isNumeric().withMessage('Email OTP must be a number')
+      .isLength({ min: 6, max: 6 }).withMessage('Email OTP must be 6 digits'),
 
-  if (!email || !emailOtp || !mobileOtp) {
-    return res.status(400).json({ message: 'email, emailOtp, and mobileOtp are required' });
-  }
-
-  try {
-    // 1. Find temp user
-    const tempUser = await prisma.temp_users.findUnique({ where: { email } });
-    if (!tempUser) {
-      return res.status(404).json({ message: 'Temporary user not found' });
+    body('mobileOtp')
+      .notEmpty().withMessage('Mobile OTP is required')
+      .isNumeric().withMessage('Mobile OTP must be a number')
+      .isLength({ min: 6, max: 6 }).withMessage('Mobile OTP must be 6 digits'),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({
+        success: false,
+        statusCode: 2,
+        message: errors.array()[0].msg
+      });
     }
 
-    const tempUserId = tempUser.id;
+    const { email, emailOtp, mobileOtp } = req.body;
 
-    // 2. Fetch valid OTP records from otp_verifications table
-    const now = new Date();
-    const otpRecords = await prisma.otp_verifications.findMany({
-      where: {
-        user_id: tempUserId,
-        is_verified: false,
-        expires_at: { gt: now }
+    try {
+      const tempUser = await prisma.temp_users.findUnique({ where: { email } });
+      if (!tempUser) {
+        return res.status(404).json({
+          success: false,
+          statusCode: 0,
+          message: 'Temporary user not found'
+        });
       }
-    });
 
-    const emailOtpRecord = otpRecords.find(otp => otp.otp === parseInt(emailOtp));
-    const mobileOtpRecord = otpRecords.find(otp => otp.otp === parseInt(mobileOtp));
+      const now = new Date();
+      const otpRecords = await prisma.otp_verifications.findMany({
+        where: {
+          user_id: tempUser.id,
+          is_verified: false,
+          expires_at: { gt: now }
+        }
+      });
 
+      const emailOtpRecord = otpRecords.find(otp => otp.otp === parseInt(emailOtp));
+      const mobileOtpRecord = otpRecords.find(otp => otp.otp === parseInt(mobileOtp));
 
-    if (!emailOtpRecord || !mobileOtpRecord) {
-      return res.status(400).json({ message: 'Invalid or expired OTP(s)' });
+      if (!emailOtpRecord || !mobileOtpRecord) {
+        return res.status(400).json({
+          success: false,
+          statusCode: 0,
+          message: 'Invalid or expired OTP(s)'
+        });
+      }
+
+      await prisma.otp_verifications.updateMany({
+        where: {
+          id: { in: [emailOtpRecord.id, mobileOtpRecord.id] }
+        },
+        data: { is_verified: true }
+      });
+
+      const newUser = await prisma.users.create({
+        data: {
+          uuid: randomUUID(),
+          name: tempUser.name,
+          email: tempUser.email,
+          mobile_no: tempUser.mobile_no,
+          password: tempUser.password,
+          status: 'active',
+          otp_status: 'verified',
+          role: 'user',
+          created_at: new Date(),
+          updated_at: new Date()
+        }
+      });
+
+      await prisma.wallets.create({
+        data: {
+          user_id: newUser.id,
+          balance: 0.0,
+          lien_balance: 0.0,
+          free_balance: 100.0,
+          balance_expire_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          created_at: new Date(),
+          updated_at: new Date()
+        }
+      });
+
+      await prisma.temp_users.delete({ where: { id: tempUser.id } });
+
+      return res.status(200).json({
+        success: true,
+        statusCode: 1,
+        message: 'User verified, registered, and wallet created successfully'
+      });
+
+    } catch (err) {
+      console.error('OTP verification error:', err);
+      return res.status(500).json({
+        success: false,
+        statusCode: 0,
+        message: 'Internal server error'
+      });
+    } finally {
+      await prisma.$disconnect();
     }
-
-    // 3. Mark OTPs as verified
-    await prisma.otp_verifications.updateMany({
-      where: {
-        id: { in: [emailOtpRecord.id, mobileOtpRecord.id] }
-      },
-      data: { is_verified: true }
-    });
-
-    // 4. Move data to users table
-    const newUser = await prisma.users.create({
-      data: {
-        uuid: randomUUID(),
-        name: tempUser.name,
-        email: tempUser.email,
-        mobile_no: tempUser.mobile_no,
-        password: tempUser.password,
-        status: 'active',
-        otp_status: 'verified',
-        role: 'user',
-        created_at: new Date(),
-        updated_at: new Date()
-      }
-    });
-
-    // 5. Create wallet
-    await prisma.wallets.create({
-      data: {
-        user_id: newUser.id,
-        balance: 0.0,
-        lien_balance: 0.0,
-        free_balance: 100.0,
-        balance_expire_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-        created_at: new Date(),
-        updated_at: new Date()
-      }
-    });
-
-    // 6. Delete temp user
-    await prisma.temp_users.delete({ where: { id: tempUserId } });
-
-    return res.status(200).json({
-      success: true,
-      message: 'User verified, registered, and wallet created successfully.'
-    });
-
-  } catch (err) {
-    console.error('OTP verification error:', err);
-    return res.status(500).json({ message: 'Internal server error' });
-  } finally {
-    await prisma.$disconnect();
   }
-});
-
+);
 
 
 module.exports = router;
