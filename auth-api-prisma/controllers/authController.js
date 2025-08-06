@@ -73,7 +73,7 @@ exports.register = async (req, res) => {
 
         const tempUserToken = generateToken({ id: tempUser.id, email: tempUser.email });
 
-        return res.status(201).json({
+        return res.status(200).json({
             success: true,
             statusCode: 1,
             message: 'OTP sent for email and mobile verification',
@@ -89,9 +89,8 @@ exports.register = async (req, res) => {
             statusCode: 0,
             message: 'Internal server error'
         });
-    } finally {
-        await prisma.$disconnect();
     }
+  
 };
 
 
@@ -405,8 +404,7 @@ exports.verifyOtp = async (req, res) => {
             statusCode: 0,
             message: 'Internal server error'
         });
-    } finally {
-        await prisma.$disconnect();
     }
+  
 };
 
