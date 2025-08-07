@@ -6,14 +6,15 @@ const jwt = require('jsonwebtoken');
 const { generateToken, verifyToken } = require('../utils/jwt');
 const router = express.Router();
 const prisma = new PrismaClient();
+const Helper = require('../utils/helper');
+
 const {
     randomUUID,
     maskEmail,
     maskMobile,
     sendOtpRegistration,
     getClientIp,
-    useragent,
-    Helper
+    useragent
 } = require('../utils/helper');
 
 
