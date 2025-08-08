@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const generateToken = (payload, expiresIn = '30s') => {
+const generateToken = (payload, expiresIn = '1h') => {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
 };
 
