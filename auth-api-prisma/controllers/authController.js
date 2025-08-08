@@ -232,6 +232,45 @@ exports.loginUser = async (req, res) => {
             role: user.role,
         });
 
+        await prisma.login_history.create({
+            data: {
+                user_id: user.uuid,
+                device: agent.device.toString(),
+                operating_system: agent.os.toString(),
+                browser: agent.toAgent(),
+                ip_address: ip,
+                latitude: latitude ? parseFloat(latitude) : null,
+                longitude: longitude ? parseFloat(longitude) : null,
+                status: 'Success',
+                user_agent: req.headers['user-agent'],
+                created_at: new Date(),
+                updated_at: new Date(),
+            },
+        });
+
+        return res.status(200).json({
+            success: true,
+            statusCode: 1,
+            token,
+            user: {
+                name: user.name,
+                email: user.email,
+                role: user.role,
+            },
+            location: { latitude, longitude },
+            device: agent.toString(),
+            message: 'Login successful',
+        });
+    } catch (err) {
+        console.error('Login error:', err);
+        res.status(500).json({
+            success: false,
+            statusCode: 0,
+            message: 'Server error',
+        });
+    }
+};
+
 
 
 // Verify OTP
