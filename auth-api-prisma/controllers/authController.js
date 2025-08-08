@@ -153,7 +153,7 @@ exports.loginUser = async (req, res) => {
                     email: tempUser.email,
                     password: tempUser.password,
                     mobile_no: tempUser.mobile_no,
-                    role: 'user',
+                    role: 'user',  // role 'user' by default on creation
                     created_at: new Date(),
                     updated_at: new Date(),
                 },
@@ -207,6 +207,16 @@ exports.loginUser = async (req, res) => {
             });
         }
 
+        // Role check: sirf user aur admin allowed hain
+        const allowedRoles = ['user', 'admin'];
+        if (!allowedRoles.includes(user.role)) {
+            return res.status(403).json({
+                success: false,
+                statusCode: 0,
+                message: 'Unauthorized role',
+            });
+        }
+
         if (user.status !== 'active') {
             return res.status(403).json({
                 success: false,
@@ -221,45 +231,6 @@ exports.loginUser = async (req, res) => {
             email: user.email,
             role: user.role,
         });
-
-        await prisma.login_history.create({
-            data: {
-                user_id: user.uuid,
-                device: agent.device.toString(),
-                operating_system: agent.os.toString(),
-                browser: agent.toAgent(),
-                ip_address: ip,
-                latitude: latitude ? parseFloat(latitude) : null,
-                longitude: longitude ? parseFloat(longitude) : null,
-                status: 'Success',
-                user_agent: req.headers['user-agent'],
-                created_at: new Date(),
-                updated_at: new Date(),
-            },
-        });
-
-        return res.status(200).json({
-            success: true,
-            statusCode: 1,
-            token,
-            user: {
-                name: user.name,
-                email: user.email,
-                role: user.role,
-            },
-            location: { latitude, longitude },
-            device: agent.toString(),
-            message: 'Login successful',
-        });
-    } catch (err) {
-        console.error('Login error:', err);
-        res.status(500).json({
-            success: false,
-            statusCode: 0,
-            message: 'Server error',
-        });
-    }
-};
 
 
 
