@@ -272,7 +272,6 @@ exports.loginUser = async (req, res) => {
 };
 
 
-
 // Verify OTP
 exports.verifyOtp = async (req, res) => {
     const errors = validationResult(req);
@@ -418,4 +417,3 @@ exports.verifyOtp = async (req, res) => {
     }
   
 };
-
