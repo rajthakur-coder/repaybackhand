@@ -13,10 +13,15 @@
     "@prisma/client": "^6.13.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.13",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "express-validator": "^7.2.1",
+    "geoip-lite": "^1.4.10",
     "jsonwebtoken": "^9.0.2",
+    "moment-timezone": "^0.6.0",
+    "multer": "^2.0.2",
+    "slugify": "^1.6.6",
     "useragent": "^2.3.0"
   },
   "devDependencies": {

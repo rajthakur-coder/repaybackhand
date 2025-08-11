@@ -4,6 +4,10 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 
+const productManagementRoutes = require('./routes/productManagementRoutes');
+
+
+
 
 dotenv.config();
 
@@ -13,6 +17,11 @@ app.use(cors());
 
 app.use('/api/v1', authRoutes);
 app.use('/api/v1', userRoutes);
+app.use('/api/v1/product-management', productManagementRoutes);
+// app.use('/api/v1/product-category', productCategoryRoutes);
+// app.use('/api/v1/products', productRoutes);
+// app.use('/api/v1/product-price', productPriceRoutes);
+
 
 
 const PORT = process.env.PORT || 5000;

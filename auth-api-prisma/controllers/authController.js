@@ -153,7 +153,7 @@ exports.loginUser = async (req, res) => {
                     email: tempUser.email,
                     password: tempUser.password,
                     mobile_no: tempUser.mobile_no,
-                    role: 'user',
+                    role: 'user',  // role 'user' by default on creation
                     created_at: new Date(),
                     updated_at: new Date(),
                 },
@@ -204,6 +204,16 @@ exports.loginUser = async (req, res) => {
                 success: false,
                 statusCode: 0,
                 message: 'Incorrect password',
+            });
+        }
+
+        // Role check: sirf user aur admin allowed hain
+        const allowedRoles = ['user', 'admin'];
+        if (!allowedRoles.includes(user.role)) {
+            return res.status(403).json({
+                success: false,
+                statusCode: 0,
+                message: 'Unauthorized role',
             });
         }
 
@@ -260,7 +270,6 @@ exports.loginUser = async (req, res) => {
         });
     }
 };
-
 
 
 // Verify OTP
