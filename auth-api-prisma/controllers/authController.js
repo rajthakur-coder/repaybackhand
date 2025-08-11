@@ -17,9 +17,6 @@ const {
     useragent
 } = require('../utils/helper');
 
-
-
-
 // Register
 exports.register = async (req, res) => {
     const errors = validationResult(req);
@@ -94,8 +91,6 @@ exports.register = async (req, res) => {
 
 };
 
-
-
 //loginUser
 exports.loginUser = async (req, res) => {
     const errors = validationResult(req);
@@ -153,7 +148,7 @@ exports.loginUser = async (req, res) => {
                     email: tempUser.email,
                     password: tempUser.password,
                     mobile_no: tempUser.mobile_no,
-                    role: 'user',  // role 'user' by default on creation
+                    role: 'user',
                     created_at: new Date(),
                     updated_at: new Date(),
                 },
@@ -207,7 +202,6 @@ exports.loginUser = async (req, res) => {
             });
         }
 
-        // Role check: sirf user aur admin allowed hain
         const allowedRoles = ['user', 'admin'];
         if (!allowedRoles.includes(user.role)) {
             return res.status(403).json({
