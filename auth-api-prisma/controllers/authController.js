@@ -91,7 +91,7 @@ exports.register = async (req, res) => {
             message: 'Internal server error'
         });
     }
-  
+
 };
 
 
@@ -415,6 +415,5 @@ exports.verifyOtp = async (req, res) => {
             message: 'Internal server error'
         });
     }
-  
-};
 
+};
