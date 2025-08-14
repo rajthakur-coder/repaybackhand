@@ -4,6 +4,8 @@ const router = express.Router();
 const productCategoryController = require('../controllers/productCategoryController');
 const productPriceController = require('../controllers/productPriceController');
 const productController = require('../controllers/productController');
+const authMiddleware  = require('../middleware/auth');
+
 
 const {
   addProductValidation,
@@ -28,6 +30,8 @@ const {
 const upload = require('../middleware/uploads');
 
 
+// router.use(authMiddleware);
+
 // Product Category Routes
 router.post('/category/get-list', productCategoryController.getProductCategoryList);
 router.post('/category/add', productCategoryValidation, productCategoryController.addProductCategory);
@@ -39,7 +43,7 @@ router.post('/category/change-status', categoryChangeStatusValidation, productCa
 
 // Product Management Routes
 router.post('/products/list', productController.getProductList);
-router.post('/products/add', upload.single('image'), addProductValidation, productController.addProduct);
+router.post('/products/add', upload.single('icon'), addProductValidation, productController.addProduct);
 router.get('/products/byid/:id', productController.getProductById);
 router.put('/products/update/:id', upload.single('image'), updateProductValidation, productController.updateProduct);
 router.delete('/products/delete/:id', deleteProductValidation, productController.deleteProduct);
@@ -52,6 +56,5 @@ router.post('/prices/list', productPriceController.getProductPricingList);
 router.get('/prices/:id', productPriceController.getProductPriceById);
 router.put('/prices/update/:id', updateProductPriceValidator, productPriceController.updateProductPrice);
 router.delete('/prices/delete/:id', deleteProductPriceValidator, productPriceController.deleteProductPrice);
-
 
 module.exports = router;

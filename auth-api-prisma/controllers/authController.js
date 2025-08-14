@@ -7,6 +7,9 @@ const { generateToken, verifyToken } = require('../utils/jwt');
 const router = express.Router();
 const prisma = new PrismaClient();
 const Helper = require('../utils/helper');
+const { logAuditTrail } = require('../services/auditTrailService');
+
+
 
 const {
     randomUUID,
@@ -57,6 +60,17 @@ exports.register = async (req, res) => {
                 updated_at: new Date()
             }
         });
+
+
+//         await logAuditTrail({
+//   table_name: 'temp_users',
+//   row_id: tempUser.id,
+//   action: 'register',
+//   user_id: null,
+//   ip_address: req.ip,
+//   remark: 'User initiated registration process',
+//   status: 'Pending Verification'
+// });
 
         const emailOtp = await sendOtpRegistration(email, 'email', tempUser.id);
         const mobileOtp = await sendOtpRegistration(mobile_no, 'mobile', tempUser.id);
@@ -194,6 +208,16 @@ exports.loginUser = async (req, res) => {
                     updated_at: new Date(),
                 },
             });
+
+    //           await logAuditTrail({
+    //     table_name: 'users',
+    //     row_id: user.id,
+    //     action: 'login',
+    //     user_id: user.id,
+    //     ip_address: ip,
+    //     remark: 'Incorrect password attempt',
+    //     status: 'Failed'
+    // });
 
             return res.status(401).json({
                 success: false,
@@ -394,6 +418,16 @@ exports.verifyOtp = async (req, res) => {
         });
 
         await prisma.temp_users.delete({ where: { id: tempUser.id } });
+
+//       await logAuditTrail({
+//     table_name: 'users',
+//     row_id: newUser.id,
+//     action: 'verify_otp',
+//     user_id: newUser.id,
+//     ip_address: req.ip,
+//     remark: 'User verified via email and mobile OTP',
+//     status: 'Verified'
+//   });
 
         return res.status(200).json({
             success: true,

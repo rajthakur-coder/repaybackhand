@@ -9,6 +9,8 @@ const fs = require('fs');
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
+const { logAuditTrail } = require('../services/auditTrailService');
+
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -36,14 +38,18 @@ function uploadImage(file) {
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
   if (file.buffer) {
-    const filename = `${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
+    const ext = path.extname(file.originalname).toLowerCase();
+    const basename = path.basename(file.originalname, ext).replace(/\s+/g, '-').replace(/\.+/g, '_');
+    const filename = `${Date.now()}-${basename}${ext}`;
     const filepath = path.join(uploadDir, filename);
     fs.writeFileSync(filepath, file.buffer);
     return `/uploads/products/${filename}`;
   } else if (file.path) {
-    // move to our uploads folder
-    const ext = path.extname(file.originalname || file.path);
-    const filename = `${Date.now()}-${path.basename(file.path)}${ext}`;
+    const ext = path.extname(file.originalname || file.path).toLowerCase();
+    let basename = path.basename(file.path, ext).replace(/\s+/g, '-').replace(/\.+/g, '_');
+    // Prevent double extension
+    if (basename.toLowerCase().endsWith(ext)) ext = '';
+    const filename = `${Date.now()}-${basename}${ext}`;
     const dest = path.join(uploadDir, filename);
     fs.copyFileSync(file.path, dest);
     return `/uploads/products/${filename}`;
@@ -51,6 +57,7 @@ function uploadImage(file) {
 
   return '';
 }
+
 
 function deleteImageIfExists(relativePath) {
   if (!relativePath) return;
@@ -140,16 +147,22 @@ exports.addProduct = async (req, res) => {
       }
     });
 
+   await logAuditTrail({
+  table_name: 'products',
+  row_id: product.id,
+  action: 'create',
+  user_id: req.user?.id || null,
+  ip_address: req.ip,
+  remark: `Product "${product.name}" created`,
+  status: product.status
+});
+
+
     return res.status(201).json({
       success: true,
       statusCode: RESPONSE_CODES.SUCCESS,
       message: 'Product Added Successfully',
-      data: {
-        id: Number(product.id),
-        name: product.name,
-        slug: product.slug,
-        category_id: Number(product.category_id)
-      }
+
     });
   } catch (err) {
     console.error('addProduct error:', err);
@@ -398,6 +411,18 @@ exports.updateProduct = async (req, res) => {
       data: updatePayload,
     });
 
+
+   await logAuditTrail({
+  table_name: 'products',
+  row_id: id,
+  action: 'update',
+  user_id: req.user?.id || null,
+  ip_address: req.ip,
+  remark: `Product "${name}" updated`,
+  status
+});
+
+
     return res.json({
       success: true,
       statusCode: RESPONSE_CODES.SUCCESS,
@@ -445,6 +470,17 @@ exports.deleteProduct = async (req, res) => {
     if (product.icon) deleteImageIfExists(product.icon);
 
     await prisma.products.delete({ where: { id } });
+
+    await logAuditTrail({
+  table_name: 'products',
+  row_id: id,
+  action: 'delete',
+  user_id: req.user?.id || null,
+  ip_address: req.ip,
+  remark: `Product "${product.name}" deleted`,
+  status: 'Deleted'
+});
+
 
     return res.json({
       success: true,
@@ -514,6 +550,18 @@ exports.changeProductStatus = async (req, res) => {
       data: { status, updated_at: new Date() }
     });
 
+
+    await logAuditTrail({
+  table_name: 'products',
+  row_id: id,
+  action: 'update',
+  user_id: req.user?.id || null,
+  ip_address: req.ip,
+  remark: `Product "${product.name}" status changed from "${product.status}" to "${status}"`,
+  status
+});
+
+
     return res.json({
       success: true,
       statusCode: RESPONSE_CODES.SUCCESS,
@@ -528,4 +576,8 @@ exports.changeProductStatus = async (req, res) => {
     });
   }
 };
+
+
+
+
 

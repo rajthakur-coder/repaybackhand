@@ -1,6 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { validationResult } = require('express-validator');
+const { logAuditTrail } = require('../services/auditTrailService');
+
 
 const RESPONSE_CODES = {
   SUCCESS: 1,
@@ -64,14 +66,25 @@ module.exports = {
         });
       }
 
-      await prisma.product_pricing.create({
-        data: {
-          product_id,
-          price,
-          currency,
-          created_at: new Date(),
-        }
-      });
+ const Product_price = await prisma.product_pricing.create({
+  data: {
+    product_id,
+    price,
+    currency,
+    created_at: new Date(),
+  }
+});
+
+await logAuditTrail({
+  table_name: 'product_pricing',
+  row_id: Product_price.id,
+  action: 'create',
+  user_id: req.user?.id,
+  ip_address: req.ip,
+  remark: `Price ${price} ${currency} added for product ID ${product_id}`,
+  status: "Active"
+});
+
 
       return res.status(201).json({
         success: true,
@@ -305,6 +318,17 @@ module.exports = {
         }
       });
 
+
+      await logAuditTrail({
+  table_name: 'product_pricing',
+  row_id: id,
+  action: 'update',
+  user_id: req.user?.id,
+  ip_address: req.ip,
+  remark: `Price updated to ${price} ${currency} for product ID ${product_id}`,
+  status: 'Active'
+});
+
       return res.json({
         success: true,
         statusCode: RESPONSE_CODES.SUCCESS,
@@ -343,6 +367,16 @@ module.exports = {
       }
 
       await prisma.product_pricing.delete({ where: { id } });
+
+      await logAuditTrail({
+  table_name: 'product_pricing',
+  row_id: id,
+  action: 'delete',
+  user_id: req.user?.id,
+  ip_address: req.ip,
+  remark: `Product pricing deleted`,
+  status: 'Deleted'
+});
 
       return res.json({
         success: true,
