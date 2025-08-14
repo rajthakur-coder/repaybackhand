@@ -58,7 +58,6 @@ function uploadImage(file) {
   return '';
 }
 
-
 function deleteImageIfExists(relativePath) {
   if (!relativePath) return;
   const publicDir = path.join(__dirname, '..', 'public');
@@ -174,23 +173,29 @@ exports.addProduct = async (req, res) => {
   }
 };
 
-exports.getProductList = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg,
-    });
-  }
-  const offset = parseInt(req.body.offset) || 0; // treat offset as page number
-  const limit = parseInt(req.body.limit) || 10;
-  const searchValue = (req.body.searchValue || '').trim();
-  const validStatuses = ['Active', 'Inactive'];
-  const statusFilter = validStatuses.includes(req.body.ProductCategoryStatus) ? req.body.ProductCategoryStatus : null;
 
+exports.getProductList = async (req, res) => {
   try {
-    const total = await prisma.products.count();
+    // 1️⃣ Validate input
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({
+        success: false,
+        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
+        message: errors.array()[0].msg,
+      });
+    }
+
+    // 2️⃣ Pagination params
+    const offset = parseInt(req.body.offset) || 0; // page number
+    const limit = parseInt(req.body.limit) || 10;
+
+    // 3️⃣ Filters
+    const searchValue = (req.body.searchValue || '').trim();
+    const validStatuses = ['Active', 'Inactive'];
+    const statusFilter = validStatuses.includes(req.body.ProductCategoryStatus)
+      ? req.body.ProductCategoryStatus
+      : null;
 
     const where = {
       AND: [
@@ -199,13 +204,14 @@ exports.getProductList = async (req, res) => {
       ].filter(Boolean)
     };
 
+    // 4️⃣ Counts
+    const total = await prisma.products.count();
     const filteredCount = await prisma.products.count({ where });
 
-    const skip = offset * limit;
-
+    // 5️⃣ Fetch paginated data
     const data = await prisma.products.findMany({
       where,
-      skip,
+      skip: offset * limit,
       take: limit,
       orderBy: { id: 'asc' },
       include: {
@@ -213,24 +219,28 @@ exports.getProductList = async (req, res) => {
       }
     });
 
+    // 6️⃣ Format data safely
     const formattedData = data.map(p => ({
-      id: Number(p.id),
-      category_id: Number(p.category_id),
+      id: p.id.toString(), // BigInt-safe
+      category_id: p.category_id.toString(),
       category_name: p.product_categories ? p.product_categories.name : null,
       ProductName: p.name,
       slug: p.slug,
-      description: p.description,
-      icon: p.icon,
-      status: p.status,
-      created_at: ISTFormat(p.created_at),
-      updated_at: ISTFormat(p.updated_at)
+      description: p.description || null,
+      icon: p.icon || null,
+      status: p.status || null,
+      created_at: p.created_at ? ISTFormat(p.created_at) : null,
+      updated_at: p.updated_at ? ISTFormat(p.updated_at) : null
     }));
 
+    // 7️⃣ Response
     return res.json({
       recordsTotal: total,
       recordsFiltered: filteredCount,
-      data: formattedData.length > 0 ? formattedData[0] : null,
+      data: formattedData
+      
     });
+
   } catch (err) {
     console.error('getProductList error:', err);
     return res.status(500).json({
@@ -240,6 +250,7 @@ exports.getProductList = async (req, res) => {
     });
   }
 };
+
 
 // Get product by ID
 exports.getProductById = async (req, res) => {
