@@ -187,7 +187,7 @@ model msg_logs {
   api_response String
   created_at   DateTime @db.Timestamp(6)
   updated_at   DateTime @db.Timestamp(6)
-  msg_apis     msg_apis @relation(fields: [api_id], references: [id], map: "fk_msg_logs_api")
+  msg_apis     msg_apis @relation(fields: [api_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_msg_logs_api")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

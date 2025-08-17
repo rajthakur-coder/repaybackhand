@@ -1,7 +1,4 @@
-// validators/serviceSwitchingValidator.js
 const { body, param } = require('express-validator');
-
-// ===== Common Rules =====
 
 // ID in URL params
 const idParamRule = param('id')
@@ -63,8 +60,6 @@ const txnLimitRule = body('txn_limit')
 const statusRule = body('status')
   .optional()
   .isIn(['Active', 'Inactive']).withMessage('Status must be Active or Inactive');
-
-// ===== Validation Sets =====
 
 // Add Service Switching
 const addServiceSwitchingValidation = [

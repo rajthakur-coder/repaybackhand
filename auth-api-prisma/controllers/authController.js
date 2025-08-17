@@ -2,14 +2,19 @@ const express = require('express');
 const { validationResult } = require('express-validator');
 const bcrypt = require('bcrypt');
 const { PrismaClient } = require('@prisma/client');
-const jwt = require('jsonwebtoken');
 const { generateToken, verifyToken } = require('../utils/jwt');
-const router = express.Router();
 const prisma = new PrismaClient();
 const Helper = require('../utils/helper');
-const { logAuditTrail } = require('../services/auditTrailService');
+// const { logAuditTrail } = require('../services/auditTrailService');
+// const RESPONSE_CODES = require('../constants/responseCodes'); // <-- नया constants फाइल से
 
-
+const RESPONSE_CODES = {
+    SUCCESS: 1,
+    VALIDATION_ERROR: 2,
+    FAILED: 0,
+    DUPLICATE: 3,
+    NOT_FOUND: 4
+};
 
 const {
     randomUUID,
@@ -26,7 +31,7 @@ exports.register = async (req, res) => {
     if (!errors.isEmpty()) {
         return res.status(422).json({
             success: false,
-            statusCode: 2,
+            statusCode: RESPONSE_CODES.VALIDATION_ERROR,
             message: errors.array()[0].msg
         });
     }
@@ -41,7 +46,7 @@ exports.register = async (req, res) => {
         if (existing) {
             return res.status(409).json({
                 success: false,
-                statusCode: 0,
+                statusCode: RESPONSE_CODES.DUPLICATE,
                 message: 'Email already registered or pending verification'
             });
         }
@@ -62,15 +67,17 @@ exports.register = async (req, res) => {
         });
 
 
-//         await logAuditTrail({
-//   table_name: 'temp_users',
-//   row_id: tempUser.id,
-//   action: 'register',
-//   user_id: null,
-//   ip_address: req.ip,
-//   remark: 'User initiated registration process',
-//   status: 'Pending Verification'
-// });
+        // await logAuditTrail({
+        //   table_name: 'temp_users',
+        //   row_id: tempUser.id,
+        //   action: 'register',
+        //   created_by: null, // not logged in yet
+        //   ip_address: req.ip,
+        //   latitude: req.body.latitude,
+        //   longitude: req.body.longitude,
+        //   remark: 'User started registration process',
+        //   status: 'Pending Verification'
+        // });
 
         const emailOtp = await sendOtpRegistration(email, 'email', tempUser.id);
         const mobileOtp = await sendOtpRegistration(mobile_no, 'mobile', tempUser.id);
@@ -87,7 +94,7 @@ exports.register = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            statusCode: 1,
+            statusCode: RESPONSE_CODES.SUCCESS,
             message: 'OTP sent for email and mobile verification',
             tempUserId: tempUserToken,
             Email: maskEmail(tempUser.email),
@@ -98,7 +105,7 @@ exports.register = async (req, res) => {
         console.error('Register error:', err);
         return res.status(500).json({
             success: false,
-            statusCode: 0,
+            statusCode: RESPONSE_CODES.FAILED,
             message: 'Internal server error'
         });
     }
@@ -111,7 +118,7 @@ exports.loginUser = async (req, res) => {
     if (!errors.isEmpty()) {
         return res.status(422).json({
             success: false,
-            statusCode: 2,
+            statusCode: RESPONSE_CODES.VALIDATION_ERROR,
             message: errors.array()[0].msg,
         });
     }
@@ -123,7 +130,7 @@ exports.loginUser = async (req, res) => {
     if (agent.isBot) {
         return res.status(400).json({
             success: false,
-            statusCode: 0,
+            statusCode: RESPONSE_CODES.FAILED,
             message: 'Unidentified User Agent',
         });
     }
@@ -186,7 +193,7 @@ exports.loginUser = async (req, res) => {
         if (!user) {
             return res.status(401).json({
                 success: false,
-                statusCode: 0,
+                statusCode: RESPONSE_CODES.NOT_FOUND,
                 message: 'Invalid email address',
             });
         }
@@ -209,19 +216,19 @@ exports.loginUser = async (req, res) => {
                 },
             });
 
-    //           await logAuditTrail({
-    //     table_name: 'users',
-    //     row_id: user.id,
-    //     action: 'login',
-    //     user_id: user.id,
-    //     ip_address: ip,
-    //     remark: 'Incorrect password attempt',
-    //     status: 'Failed'
-    // });
+            //           await logAuditTrail({
+            //     table_name: 'users',
+            //     row_id: user.id,
+            //     action: 'login',
+            //     user_id: user.id,
+            //     ip_address: ip,
+            //     remark: 'Incorrect password attempt',
+            //     status: 'Failed'
+            // });
 
             return res.status(401).json({
                 success: false,
-                statusCode: 0,
+                statusCode: RESPONSE_CODES.FAILED,
                 message: 'Incorrect password',
             });
         }
@@ -230,7 +237,7 @@ exports.loginUser = async (req, res) => {
         if (!allowedRoles.includes(user.role)) {
             return res.status(403).json({
                 success: false,
-                statusCode: 0,
+                statusCode: RESPONSE_CODES.FAILED,
                 message: 'Unauthorized role',
             });
         }
@@ -238,7 +245,7 @@ exports.loginUser = async (req, res) => {
         if (user.status !== 'active') {
             return res.status(403).json({
                 success: false,
-                statusCode: 0,
+                statusCode: RESPONSE_CODES.FAILED,
                 message: 'Account not active',
             });
         }
@@ -268,7 +275,7 @@ exports.loginUser = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            statusCode: 1,
+            statusCode: RESPONSE_CODES.SUCCESS,
             token,
             user: {
                 name: user.name,
@@ -283,7 +290,7 @@ exports.loginUser = async (req, res) => {
         console.error('Login error:', err);
         res.status(500).json({
             success: false,
-            statusCode: 0,
+            statusCode: RESPONSE_CODES.FAILED,
             message: 'Server error',
         });
     }
@@ -296,7 +303,7 @@ exports.verifyOtp = async (req, res) => {
     if (!errors.isEmpty()) {
         return res.status(422).json({
             success: false,
-            statusCode: 2,
+            statusCode: RESPONSE_CODES.VALIDATION_ERROR,
             message: errors.array()[0].msg
         });
     }
@@ -310,7 +317,7 @@ exports.verifyOtp = async (req, res) => {
         if (!decoded || !decoded.email) {
             return res.status(400).json({
                 success: false,
-                statusCode: 0,
+                statusCode: RESPONSE_CODES.FAILED,
                 message: 'Invalid or expired temp user token'
             });
         }
@@ -323,14 +330,14 @@ exports.verifyOtp = async (req, res) => {
             if (alreadyRegistered) {
                 return res.status(200).json({
                     success: true,
-                    statusCode: 1,
+                    statusCode: RESPONSE_CODES.SUCCESS,
                     message: 'User already verified'
                 });
             }
 
             return res.status(404).json({
                 success: false,
-                statusCode: 0,
+                statusCode: RESPONSE_CODES.NOT_FOUND,
                 message: 'Temporary user not found'
             });
         }
@@ -346,7 +353,7 @@ exports.verifyOtp = async (req, res) => {
         if (!emailOtpRecord || emailOtpRecord.expires_at < now || emailOtpRecord.is_verified) {
             return res.status(400).json({
                 success: false,
-                statusCode: 0,
+                statusCode: RESPONSE_CODES.FAILED,
                 message: !emailOtpRecord
                     ? 'Invalid Email OTP'
                     : emailOtpRecord.expires_at < now
@@ -366,7 +373,7 @@ exports.verifyOtp = async (req, res) => {
         if (!mobileOtpRecord || mobileOtpRecord.expires_at < now || mobileOtpRecord.is_verified) {
             return res.status(400).json({
                 success: false,
-                statusCode: 0,
+                statusCode: RESPONSE_CODES.FAILED,
                 message: !mobileOtpRecord
                     ? 'Invalid Mobile OTP'
                     : mobileOtpRecord.expires_at < now
@@ -385,7 +392,7 @@ exports.verifyOtp = async (req, res) => {
         if (existingUser) {
             return res.status(409).json({
                 success: false,
-                statusCode: 0,
+                statusCode: RESPONSE_CODES.FAILED,
                 message: 'User already verified'
             });
         }
@@ -419,19 +426,19 @@ exports.verifyOtp = async (req, res) => {
 
         await prisma.temp_users.delete({ where: { id: tempUser.id } });
 
-//       await logAuditTrail({
-//     table_name: 'users',
-//     row_id: newUser.id,
-//     action: 'verify_otp',
-//     user_id: newUser.id,
-//     ip_address: req.ip,
-//     remark: 'User verified via email and mobile OTP',
-//     status: 'Verified'
-//   });
+        //      await logAuditTrail({
+        //     table_name: 'users',
+        //     row_id: newUser.id,
+        //     action: 'verify_otp',
+        //     user_id: newUser.id,
+        //     ip_address: req.ip,
+        //     remark: 'User verified via email and mobile OTP',
+        //     status: 'Verified'
+        //   });
 
         return res.status(200).json({
             success: true,
-            statusCode: 1,
+            statusCode: RESPONSE_CODES.SUCCESS,
             message: `User verified and registered successfully using ${maskMobile(tempUser.mobile_no)} and ${maskEmail(tempUser.email)}`
         });
 
@@ -439,7 +446,7 @@ exports.verifyOtp = async (req, res) => {
         console.error('OTP verification error:', err);
         return res.status(500).json({
             success: false,
-            statusCode: 0,
+            statusCode: RESPONSE_CODES.FAILED,
             message: 'Internal server error'
         });
     }

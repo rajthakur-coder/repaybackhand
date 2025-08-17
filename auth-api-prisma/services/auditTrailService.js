@@ -1,6 +1,4 @@
 const { prisma } = require('../lib/prismaClient');
-
-
 async function logAuditTrail({
   table_name = null,
   row_id = null,

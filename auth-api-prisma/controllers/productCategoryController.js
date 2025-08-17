@@ -54,12 +54,10 @@ exports.addProductCategory = async (req, res) => {
             });
         }
 
-        // Pehle category create karo aur result store karo
         const newCategory = await prisma.product_categories.create({
             data: { name, slug, status, created_at: dateObj }
         });
 
-        // Audit Trail - CREATE
         await logAuditTrail({
             table_name: 'product_categories',
             row_id: newCategory.id, // naya id use karna zaroori hai
@@ -186,89 +184,88 @@ exports.getProductCategoryById = async (req, res) => {
 
 //  Update category
 exports.updateProductCategory = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg,
-    });
-  }
-
-  const { id, name, status } = req.body;
-
-  try {
-    const category = await prisma.product_categories.findUnique({
-      where: { id: Number(id) },
-    });
-
-    if (!category) {
-      return res.status(404).json({
-        success: false,
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Product Category Not Found',
-      });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(422).json({
+            success: false,
+            statusCode: RESPONSE_CODES.VALIDATION_ERROR,
+            message: errors.array()[0].msg,
+        });
     }
 
-    const duplicateName = await prisma.product_categories.findFirst({
-      where: {
-        name: { equals: name, mode: 'insensitive' },
-        id: { not: Number(id) },
-      },
-    });
+    const { id, name, status } = req.body;
 
-    if (duplicateName) {
-      return res.status(409).json({
-        success: false,
-        statusCode: RESPONSE_CODES.DUPLICATE,
-        message: 'Another category with the same name exists',
-      });
+    try {
+        const category = await prisma.product_categories.findUnique({
+            where: { id: Number(id) },
+        });
+
+        if (!category) {
+            return res.status(404).json({
+                success: false,
+                statusCode: RESPONSE_CODES.NOT_FOUND,
+                message: 'Product Category Not Found',
+            });
+        }
+
+        const duplicateName = await prisma.product_categories.findFirst({
+            where: {
+                name: { equals: name, mode: 'insensitive' },
+                id: { not: Number(id) },
+            },
+        });
+
+        if (duplicateName) {
+            return res.status(409).json({
+                success: false,
+                statusCode: RESPONSE_CODES.DUPLICATE,
+                message: 'Another category with the same name exists',
+            });
+        }
+
+        const slug = slugify(name, { lower: true });
+        const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
+
+        if (
+            category.name.toLowerCase() === name.toLowerCase() &&
+            category.slug === slug &&
+            category.status === status
+        ) {
+            return res.status(200).json({
+                success: false,
+                statusCode: RESPONSE_CODES.DUPLICATE,
+                message: 'Product category already updated',
+            });
+        }
+
+        await prisma.product_categories.update({
+            where: { id: Number(id) },
+            data: { name, slug, status, updated_at: updatedAt },
+        });
+
+        await logAuditTrail({
+            table_name: 'product_categories',
+            row_id: Number(category.id),
+            action: 'update',
+            user_id: req.user?.id ? Number(req.user.id) : null,
+            ip_address: req.ip,
+            remark: `Product category "${name}" updated`,
+            status,
+        });
+
+        res.json({
+            success: true,
+            statusCode: RESPONSE_CODES.SUCCESS,
+            message: 'Product category updated successfully',
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            success: false,
+            statusCode: RESPONSE_CODES.FAILED,
+            message: 'Server error',
+        });
     }
-
-    const slug = slugify(name, { lower: true });
-    const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
-
-    if (
-      category.name.toLowerCase() === name.toLowerCase() &&
-      category.slug === slug &&
-      category.status === status
-    ) {
-      return res.status(200).json({
-        success: false,
-        statusCode: RESPONSE_CODES.DUPLICATE,
-        message: 'Product category already updated',
-      });
-    }
-
-    await prisma.product_categories.update({
-      where: { id: Number(id) },
-      data: { name, slug, status, updated_at: updatedAt },
-    });
-
-    // Audit Trail - UPDATE
-    await logAuditTrail({
-      table_name: 'product_categories',
-      row_id: Number(category.id), 
-      action: 'update',
-      user_id: req.user?.id ? Number(req.user.id) : null,
-      ip_address: req.ip,
-      remark: `Product category "${name}" updated`,
-      status,
-    });
-
-    res.json({
-      success: true,
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Product category updated successfully',
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      statusCode: RESPONSE_CODES.FAILED,
-      message: 'Server error',
-    });
-  }
 };
 
 // Delete category
@@ -297,16 +294,15 @@ exports.deleteProductCategory = async (req, res) => {
 
         await prisma.product_categories.delete({ where: { id } });
 
-        // Audit Trail - DELETE
-await logAuditTrail({
-    table_name: 'product_categories',
-    row_id: id,
-    action: 'delete',
-    user_id: req.user?.id,
-    ip_address: req.ip,
-    remark: `Product category deleted`,
-    status: 'Deleted'
-});
+        await logAuditTrail({
+            table_name: 'product_categories',
+            row_id: id,
+            action: 'delete',
+            user_id: req.user?.id,
+            ip_address: req.ip,
+            remark: `Product category deleted`,
+            status: 'Deleted'
+        });
 
         res.json({
             success: true,
@@ -370,16 +366,15 @@ exports.changeProductCategoryStatus = async (req, res) => {
             data: { status }
         });
 
-        // Audit Trail - STATUS CHANGE
-await logAuditTrail({
-    table_name: 'product_categories',
-    row_id: id,
-    action: "status_change",
-    user_id: req.user?.id,
-    ip_address: req.ip,
-    remark: `Status changed to ${status}`,
-    status
-});
+        await logAuditTrail({
+            table_name: 'product_categories',
+            row_id: id,
+            action: "status_change",
+            user_id: req.user?.id,
+            ip_address: req.ip,
+            remark: `Status changed to ${status}`,
+            status
+        });
 
         res.json({
             success: true,

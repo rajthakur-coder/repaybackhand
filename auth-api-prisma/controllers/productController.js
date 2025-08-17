@@ -1,7 +1,5 @@
-// controllers/productController.js
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-
 const { validationResult } = require('express-validator');
 const slugify = require('slugify');
 const path = require('path');
@@ -14,7 +12,7 @@ const { logAuditTrail } = require('../services/auditTrailService');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-// Response codes centralized
+// Response codes
 const RESPONSE_CODES = {
   SUCCESS: 1,
   VALIDATION_ERROR: 2,
@@ -23,7 +21,6 @@ const RESPONSE_CODES = {
   NOT_FOUND: 4
 };
 
-// Helpers
 const ISTFormat = (d) => (d ? dayjs(d).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null);
 
 function safeParseInt(value, fallback = null) {
@@ -47,7 +44,6 @@ function uploadImage(file) {
   } else if (file.path) {
     const ext = path.extname(file.originalname || file.path).toLowerCase();
     let basename = path.basename(file.path, ext).replace(/\s+/g, '-').replace(/\.+/g, '_');
-    // Prevent double extension
     if (basename.toLowerCase().endsWith(ext)) ext = '';
     const filename = `${Date.now()}-${basename}${ext}`;
     const dest = path.join(uploadDir, filename);
@@ -146,15 +142,15 @@ exports.addProduct = async (req, res) => {
       }
     });
 
-   await logAuditTrail({
-  table_name: 'products',
-  row_id: product.id,
-  action: 'create',
-  user_id: req.user?.id || null,
-  ip_address: req.ip,
-  remark: `Product "${product.name}" created`,
-  status: product.status
-});
+    await logAuditTrail({
+      table_name: 'products',
+      row_id: product.id,
+      action: 'create',
+      user_id: req.user?.id || null,
+      ip_address: req.ip,
+      remark: `Product "${product.name}" created`,
+      status: product.status
+    });
 
 
     return res.status(201).json({
@@ -173,10 +169,10 @@ exports.addProduct = async (req, res) => {
   }
 };
 
-
+// Get product list
 exports.getProductList = async (req, res) => {
   try {
-    // 1️⃣ Validate input
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(422).json({
@@ -186,11 +182,9 @@ exports.getProductList = async (req, res) => {
       });
     }
 
-    // 2️⃣ Pagination params
     const offset = parseInt(req.body.offset) || 0; // page number
     const limit = parseInt(req.body.limit) || 10;
 
-    // 3️⃣ Filters
     const searchValue = (req.body.searchValue || '').trim();
     const validStatuses = ['Active', 'Inactive'];
     const statusFilter = validStatuses.includes(req.body.ProductCategoryStatus)
@@ -204,11 +198,9 @@ exports.getProductList = async (req, res) => {
       ].filter(Boolean)
     };
 
-    // 4️⃣ Counts
     const total = await prisma.products.count();
     const filteredCount = await prisma.products.count({ where });
 
-    // 5️⃣ Fetch paginated data
     const data = await prisma.products.findMany({
       where,
       skip: offset * limit,
@@ -219,9 +211,8 @@ exports.getProductList = async (req, res) => {
       }
     });
 
-    // 6️⃣ Format data safely
     const formattedData = data.map(p => ({
-      id: p.id.toString(), // BigInt-safe
+      id: p.id.toString(),
       category_id: p.category_id.toString(),
       category_name: p.product_categories ? p.product_categories.name : null,
       ProductName: p.name,
@@ -233,12 +224,11 @@ exports.getProductList = async (req, res) => {
       updated_at: p.updated_at ? ISTFormat(p.updated_at) : null
     }));
 
-    // 7️⃣ Response
     return res.json({
       recordsTotal: total,
       recordsFiltered: filteredCount,
       data: formattedData
-      
+
     });
 
   } catch (err) {
@@ -325,7 +315,7 @@ exports.updateProduct = async (req, res) => {
     });
   }
 
-  const id = safeParseInt(req.params.id);
+  const id = safeParseInt(req.body.id);
   if (!id) {
     return res.status(422).json({
       success: false,
@@ -423,15 +413,15 @@ exports.updateProduct = async (req, res) => {
     });
 
 
-   await logAuditTrail({
-  table_name: 'products',
-  row_id: id,
-  action: 'update',
-  user_id: req.user?.id || null,
-  ip_address: req.ip,
-  remark: `Product "${name}" updated`,
-  status
-});
+    await logAuditTrail({
+      table_name: 'products',
+      row_id: id,
+      action: 'update',
+      user_id: req.user?.id || null,
+      ip_address: req.ip,
+      remark: `Product "${name}" updated`,
+      status
+    });
 
 
     return res.json({
@@ -483,14 +473,14 @@ exports.deleteProduct = async (req, res) => {
     await prisma.products.delete({ where: { id } });
 
     await logAuditTrail({
-  table_name: 'products',
-  row_id: id,
-  action: 'delete',
-  user_id: req.user?.id || null,
-  ip_address: req.ip,
-  remark: `Product "${product.name}" deleted`,
-  status: 'Deleted'
-});
+      table_name: 'products',
+      row_id: id,
+      action: 'delete',
+      user_id: req.user?.id || null,
+      ip_address: req.ip,
+      remark: `Product "${product.name}" deleted`,
+      status: 'Deleted'
+    });
 
 
     return res.json({
@@ -563,14 +553,14 @@ exports.changeProductStatus = async (req, res) => {
 
 
     await logAuditTrail({
-  table_name: 'products',
-  row_id: id,
-  action: 'update',
-  user_id: req.user?.id || null,
-  ip_address: req.ip,
-  remark: `Product "${product.name}" status changed from "${product.status}" to "${status}"`,
-  status
-});
+      table_name: 'products',
+      row_id: id,
+      action: 'update',
+      user_id: req.user?.id || null,
+      ip_address: req.ip,
+      remark: `Product "${product.name}" status changed from "${product.status}" to "${status}"`,
+      status
+    });
 
 
     return res.json({
@@ -587,8 +577,3 @@ exports.changeProductStatus = async (req, res) => {
     });
   }
 };
-
-
-
-
-

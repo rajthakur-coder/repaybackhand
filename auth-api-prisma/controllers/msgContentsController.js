@@ -1,6 +1,4 @@
-// controllers/msgContentsController.js
 const { PrismaClient, Prisma } = require('@prisma/client');
-// Singleton PrismaClient
 const prisma = new PrismaClient();
 const { validationResult } = require('express-validator');
 const dayjs = require('dayjs');
@@ -32,7 +30,7 @@ function normalizeSendFlags(body) {
   };
 }
 
-// Add Message Content
+// Add Message 
 exports.addMsgContent = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -46,7 +44,6 @@ exports.addMsgContent = async (req, res) => {
   try {
     const { message_type, sms_content, whatsapp_content, mail_content, notification_content } = req.body;
 
-    // Check for duplicate message content by type + main fields
     const existing = await prisma.msg_contents.findFirst({
       where: {
         message_type,
@@ -114,7 +111,7 @@ exports.addMsgContent = async (req, res) => {
   }
 };
 
-// List Message Contents with pagination
+// List Message 
 exports.getMsgContentList = async (req, res) => {
   const offset = parseInt(req.body.offset) || 0;
   const limit = parseInt(req.body.limit) || 10;
@@ -146,7 +143,7 @@ exports.getMsgContentList = async (req, res) => {
   }
 };
 
-// Get Message Content by ID
+// Get Message ID
 exports.getMsgContentById = async (req, res) => {
   const id = parseInt(req.params.id);
   if (!id) {
@@ -188,7 +185,7 @@ exports.getMsgContentById = async (req, res) => {
   }
 };
 
-// Update Message Content
+// Update Message
 exports.updateMsgContent = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -218,7 +215,7 @@ exports.updateMsgContent = async (req, res) => {
       });
     }
 
-    const sendFlags = normalizeSendFlags(req.body); // <--- MUST be defined first
+    const sendFlags = normalizeSendFlags(req.body);
 
     const {
       message_type,
@@ -228,7 +225,6 @@ exports.updateMsgContent = async (req, res) => {
       notification_content
     } = req.body;
 
-    // Check if any field actually changed
     const isSame =
       content.message_type === message_type &&
       content.sms_content === sms_content &&
@@ -299,7 +295,7 @@ exports.updateMsgContent = async (req, res) => {
 
 
 
-// Delete Message Content
+// Delete Message
 exports.deleteMsgContent = async (req, res) => {
   const id = parseInt(req.params.id);
   if (!id) {

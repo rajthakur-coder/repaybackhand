@@ -35,7 +35,6 @@ exports.addSignature = async (req, res) => {
   const { signature, signature_type, status } = req.body;
 
   try {
-    // Duplicate check
     const existing = await prisma.msg_signature.findFirst({
       where: {
         signature: { equals: signature, mode: 'insensitive' },

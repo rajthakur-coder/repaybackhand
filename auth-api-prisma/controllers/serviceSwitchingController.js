@@ -1,4 +1,3 @@
-// controllers/serviceSwitchingController.js
 const { PrismaClient, Prisma } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { validationResult } = require('express-validator');
@@ -49,7 +48,6 @@ exports.addServiceSwitching = async (req, res) => {
   } = req.body;
 
   try {
-    // 1️⃣ Check if API exists
     const apiExists = await prisma.msg_apis.findUnique({
       where: { id: BigInt(api_id) }
     });
@@ -61,7 +59,6 @@ exports.addServiceSwitching = async (req, res) => {
       });
     }
 
-    // 2️⃣ Check if Product exists
     const productExists = await prisma.products.findUnique({
       where: { id: BigInt(product_id) }
     });
@@ -73,7 +70,6 @@ exports.addServiceSwitching = async (req, res) => {
       });
     }
 
-    // 3️⃣ Duplicate check
     const existing = await prisma.service_switchings.findFirst({
       where: { api_id: BigInt(api_id), product_id: BigInt(product_id) }
     });
@@ -87,7 +83,6 @@ exports.addServiceSwitching = async (req, res) => {
 
     const dateObj = dayjs().tz('Asia/Kolkata').toDate();
 
-    // 4️⃣ Create service switching
     const newData = await prisma.service_switchings.create({
       data: {
         api_id: BigInt(api_id),
@@ -105,7 +100,6 @@ exports.addServiceSwitching = async (req, res) => {
       }
     });
 
-    // 5️⃣ Audit log
     await logAuditTrail({
       table_name: 'service_switchings',
       row_id: newData.id,
@@ -132,7 +126,6 @@ exports.addServiceSwitching = async (req, res) => {
     });
   }
 };
-
 
 
 // List Service Switching
@@ -274,7 +267,6 @@ exports.updateServiceSwitching = async (req, res) => {
       });
     }
 
-    // Duplicate check excluding current record
     const duplicate = await prisma.service_switchings.findFirst({
       where: {
         api_id: BigInt(api_id),

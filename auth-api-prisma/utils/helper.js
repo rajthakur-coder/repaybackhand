@@ -6,12 +6,16 @@ const prisma = new PrismaClient();
 const randomUUID = () => Math.floor(100000 + Math.random() * 900000);
 
 // Mobile Masking
-const maskMobile = (mobile) => `****${mobile.slice(-4)}`;
-
+const maskMobile = (mobile) => {
+  if (!mobile || mobile.length < 4) return '****';
+  return `****${mobile.slice(-4)}`;
+};
 //  Email Masking
 const maskEmail = (email) => {
+  if (!email || !email.includes('@')) return '****@****';
   const [local, domain] = email.split('@');
-  return `${local.slice(0, 2)}****@${domain}`;
+  const visible = local.length > 2 ? local.slice(0, 2) : local.charAt(0);
+  return `${visible}****@${domain}`;
 };
 
 // Send OTP and Save to DB
@@ -36,13 +40,15 @@ const sendOtpRegistration = async (receiver, type, user_id) => {
 
 //  Get Client IP Address
 const getClientIp = (req) => {
-  return (
-    req.headers['x-forwarded-for'] ||
-    req.connection?.remoteAddress ||
-    req.socket?.remoteAddress ||
-    req.connection?.socket?.remoteAddress ||
-    null
-  );
+  let ip = req.headers['x-forwarded-for']?.split(',')[0]
+    || req.connection?.remoteAddress
+    || req.socket?.remoteAddress
+    || req.connection?.socket?.remoteAddress
+    || null;
+
+  if (ip === '::1') ip = '127.0.0.1';
+  if (ip && ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
+  return ip;
 };
 
 module.exports = {

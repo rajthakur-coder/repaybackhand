@@ -1,6 +1,6 @@
 const { body, param } = require('express-validator');
 
-// ==================== Common Validators ====================
+// Common Validators 
 
 // ID in URL param
 const idParamRule = param('id')
@@ -34,12 +34,11 @@ const baseUrlRule = body('base_url')
   .notEmpty().withMessage('Base URL is required')
   .isURL().withMessage('Base URL must be a valid URL');
 
-// Optional Params (JSON)
 const paramsRule = body('params')
   .optional()
   .isJSON().withMessage('Params must be a valid JSON string');
 
-// ==================== Validation Sets ====================
+//  Validation Sets 
 
 // Add new API
 const addApiValidation = [

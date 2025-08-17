@@ -66,24 +66,24 @@ module.exports = {
         });
       }
 
- const Product_price = await prisma.product_pricing.create({
-  data: {
-    product_id,
-    price,
-    currency,
-    created_at: new Date(),
-  }
-});
+      const Product_price = await prisma.product_pricing.create({
+        data: {
+          product_id,
+          price,
+          currency,
+          created_at: new Date(),
+        }
+      });
 
-await logAuditTrail({
-  table_name: 'product_pricing',
-  row_id: Product_price.id,
-  action: 'create',
-  user_id: req.user?.id,
-  ip_address: req.ip,
-  remark: `Price ${price} ${currency} added for product ID ${product_id}`,
-  status: "Active"
-});
+      await logAuditTrail({
+        table_name: 'product_pricing',
+        row_id: Product_price.id,
+        action: 'create',
+        user_id: req.user?.id,
+        ip_address: req.ip,
+        remark: `Price ${price} ${currency} added for product ID ${product_id}`,
+        status: "Active"
+      });
 
 
       return res.status(201).json({
@@ -239,7 +239,7 @@ await logAuditTrail({
       });
     }
 
-    const id = safeParseInt(req.params.id);
+    const id = safeParseInt(req.body.id);
     if (!id) {
       return res.status(422).json({
         success: false,
@@ -320,14 +320,14 @@ await logAuditTrail({
 
 
       await logAuditTrail({
-  table_name: 'product_pricing',
-  row_id: id,
-  action: 'update',
-  user_id: req.user?.id,
-  ip_address: req.ip,
-  remark: `Price updated to ${price} ${currency} for product ID ${product_id}`,
-  status: 'Active'
-});
+        table_name: 'product_pricing',
+        row_id: id,
+        action: 'update',
+        user_id: req.user?.id,
+        ip_address: req.ip,
+        remark: `Price updated to ${price} ${currency} for product ID ${product_id}`,
+        status: 'Active'
+      });
 
       return res.json({
         success: true,
@@ -369,14 +369,14 @@ await logAuditTrail({
       await prisma.product_pricing.delete({ where: { id } });
 
       await logAuditTrail({
-  table_name: 'product_pricing',
-  row_id: id,
-  action: 'delete',
-  user_id: req.user?.id,
-  ip_address: req.ip,
-  remark: `Product pricing deleted`,
-  status: 'Deleted'
-});
+        table_name: 'product_pricing',
+        row_id: id,
+        action: 'delete',
+        user_id: req.user?.id,
+        ip_address: req.ip,
+        remark: `Product pricing deleted`,
+        status: 'Deleted'
+      });
 
       return res.json({
         success: true,

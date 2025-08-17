@@ -1,7 +1,6 @@
 // validations/msgContentsValidation.js
 const { body, param } = require('express-validator');
 
-// ===== Common Rules =====
 
 // ID in URL param
 const idParamRule = param('id')
@@ -39,7 +38,6 @@ const textRule = (field, max) => body(field)
   .isLength({ max }).withMessage(`${field} must be at most ${max} characters`)
   .trim();
 
-// Conditional content required if send flag is Yes
 const conditionalContentRule = (contentField, sendFlagField) => body(contentField)
   .custom((value, { req }) => {
     if (req.body[sendFlagField] === 'Yes' && !value) {
@@ -48,7 +46,7 @@ const conditionalContentRule = (contentField, sendFlagField) => body(contentFiel
     return true;
   });
 
-// ===== Validation Sets =====
+//Validation Sets
 
 // Add new message content
 const addMsgContentValidation = [

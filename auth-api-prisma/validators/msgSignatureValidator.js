@@ -1,6 +1,6 @@
 const { body, param } = require('express-validator');
 
-// ===== Common rules =====
+// Common rules
 
 // ID in URL param
 const idParamRule = param('id')
@@ -42,7 +42,7 @@ const statusRule = body('status')
     return true;
   });
 
-// ===== Validation sets =====
+//Validation sets
 
 // Add new signature
 const addSignatureValidation = [
@@ -59,11 +59,6 @@ const updateSignatureValidation = [
   statusRule
 ];
 
-// Change status only
-const changeStatusValidation = [
-  idBodyRule,
-  statusRule
-];
 
 // Delete signature
 const deleteSignatureValidation = [
@@ -73,6 +68,5 @@ const deleteSignatureValidation = [
 module.exports = {
   addSignatureValidation,
   updateSignatureValidation,
-  changeStatusValidation,
   deleteSignatureValidation
 };
