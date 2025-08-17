@@ -40,12 +40,11 @@ router.post('/category/change-status', changeCategoryStatusValidation, productCa
 router.post('/products/list', productController.getProductList);
 router.post('/products/add', upload.single('icon'), addProductValidation, productController.addProduct);
 router.get('/products/byid/:id', productController.getProductById);
-router.put('/products/update', upload.single('image'), updateProductValidation, productController.updateProduct);
+router.put('/products/update', upload.single('icon'), updateProductValidation, productController.updateProduct);
 router.delete('/products/delete/:id', deleteProductValidation, productController.deleteProduct);
 router.post('/products/change-status', changeProductStatusValidation, productController.changeProductStatus);
 
 // Product Price Routes
-
 router.post('/prices/add', createProductPriceValidator, productPriceController.addProductPrice);
 router.post('/prices/list', productPriceController.getProductPricingList);
 router.get('/prices/byid/:id', productPriceController.getProductPriceById);
