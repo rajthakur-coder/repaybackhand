@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-// const authMiddleware  = require('../middleware/auth');
+const authMiddleware  = require('../middleware/auth');
 const upload = require('../middleware/uploads');
 
 //Controllers
@@ -26,7 +26,7 @@ const {
   deleteProductPriceValidator,
 } = require('../validators/productManagement');
 // Apply Auth Middleware for all routes 
-// router.use(authMiddleware);
+router.use(authMiddleware);
 
 // Product Category Routes
 router.post('/category/get-list', productCategoryController.getProductCategoryList);

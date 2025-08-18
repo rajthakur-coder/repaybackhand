@@ -34,9 +34,14 @@ const baseUrlRule = body('base_url')
   .notEmpty().withMessage('Base URL is required')
   .isURL().withMessage('Base URL must be a valid URL');
 
+
 const paramsRule = body('params')
-  .optional()
-  .isJSON().withMessage('Params must be a valid JSON string');
+  // .optional()
+  .isString().withMessage('Params must be a valid string')
+  .notEmpty().withMessage('Params cannot be empty')
+  .isLength({ max: 1000 }).withMessage('Params too long');
+
+
 
 //  Validation Sets 
 
@@ -45,6 +50,7 @@ const addApiValidation = [
   apiNameRule,
   apiTypeRule,
   baseUrlRule,
+  paramsRule,
   methodRule,
   statusRule
 ];

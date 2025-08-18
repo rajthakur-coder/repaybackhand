@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 
 const serviceSwitchingController = require('../controllers/serviceSwitchingController');
+const authMiddleware  = require('../middleware/auth');
+
+
 
 const {
     addServiceSwitchingValidation,
@@ -9,6 +12,8 @@ const {
     deleteServiceSwitchingValidation
 } = require('../validators/serviceSwitchingValidator');
 
+
+router.use(authMiddleware);
 
 // Add Service Switching
 router.post('/service-switching/add', addServiceSwitchingValidation, serviceSwitchingController.addServiceSwitching);
