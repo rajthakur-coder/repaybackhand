@@ -282,7 +282,7 @@ exports.getProductById = async (req, res) => {
 
     const formattedProduct = {
       id: Number(product.id),
-      // category_id: Number(product.category_id),
+      category_id: Number(product.category_id),
       category_name: product.product_categories ? product.product_categories.name : null,
       name: product.name,
       slug: product.slug,
