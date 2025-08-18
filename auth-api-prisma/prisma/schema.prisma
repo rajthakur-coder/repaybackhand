@@ -65,18 +65,6 @@ model login_history {
   user_id          Int?
 }
 
-model otp_verifications {
-  id          Int         @id @default(autoincrement())
-  otp         Int
-  expires_at  DateTime    @db.Timestamp(6)
-  is_verified Boolean?    @default(false)
-  created_at  DateTime    @db.Timestamp(6)
-  updated_at  DateTime?   @db.Timestamp(6)
-  user_id     Int?
-  type        String?     @db.VarChar(10)
-  temp_user   temp_users? @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_temp_user")
-
-  @@index([user_id, type], map: "idx_user_id_type")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

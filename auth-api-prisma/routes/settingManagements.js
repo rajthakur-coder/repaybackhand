@@ -13,7 +13,7 @@ const {
 } = require('../validators/serviceSwitchingValidator');
 
 
-router.use(authMiddleware);
+// router.use(authMiddleware);
 
 // Add Service Switching
 router.post('/service-switching/add', addServiceSwitchingValidation, serviceSwitchingController.addServiceSwitching);

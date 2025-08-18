@@ -28,31 +28,30 @@ function safeParseInt(value, fallback = null) {
   return Number.isNaN(n) ? fallback : n;
 }
 
-function uploadImage(file) {
-  if (!file || (!file.buffer && !file.path)) return '';
+function uploadImage(file, req) {
+  if (!file || (!file.buffer && !file.path)) return "";
 
-  const uploadDir = path.join(__dirname, '..', 'public', 'uploads', 'products');
+  const uploadDir = path.join(__dirname, "..", "public", "uploads", "products");
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
+  const ext = path.extname(file.originalname || file.path).toLowerCase();
+  const basename = path.basename(file.originalname || file.path, ext)
+    .replace(/\s+/g, "-")
+    .replace(/\.+/g, "_");
+
+  const filename = `${Date.now()}-${basename}${ext}`;
+  const filepath = path.join(uploadDir, filename);
+
   if (file.buffer) {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const basename = path.basename(file.originalname, ext).replace(/\s+/g, '-').replace(/\.+/g, '_');
-    const filename = `${Date.now()}-${basename}${ext}`;
-    const filepath = path.join(uploadDir, filename);
     fs.writeFileSync(filepath, file.buffer);
-    return `/uploads/products/${filename}`;
   } else if (file.path) {
-    const ext = path.extname(file.originalname || file.path).toLowerCase();
-    let basename = path.basename(file.path, ext).replace(/\s+/g, '-').replace(/\.+/g, '_');
-    if (basename.toLowerCase().endsWith(ext)) ext = '';
-    const filename = `${Date.now()}-${basename}${ext}`;
-    const dest = path.join(uploadDir, filename);
-    fs.copyFileSync(file.path, dest);
-    return `/uploads/products/${filename}`;
+    fs.copyFileSync(file.path, filepath);
   }
 
-  return '';
+  // 👇 Ab full URL return karenge
+  return `${req.protocol}://${req.get("host")}/uploads/products/${filename}`;
 }
+
 
 function deleteImageIfExists(relativePath) {
   if (!relativePath) return;
@@ -128,7 +127,8 @@ exports.addProduct = async (req, res) => {
       slug = `${slug}-${Date.now()}`;
     }
 
-    const imagePath = uploadImage(req.file);
+    // 👇 Image upload with full URL
+    const imagePath = req.file ? uploadImage(req.file, req) : null;
 
     const product = await prisma.products.create({
       data: {
@@ -136,7 +136,7 @@ exports.addProduct = async (req, res) => {
         name,
         slug,
         description,
-        icon: imagePath,
+        icon: imagePath, // yaha ab full URL save hoga
         status,
         created_at: new Date()
       }
@@ -152,12 +152,11 @@ exports.addProduct = async (req, res) => {
       status: product.status
     });
 
-
     return res.status(201).json({
       success: true,
       statusCode: RESPONSE_CODES.SUCCESS,
       message: 'Product Added Successfully',
-
+      product // 👈 response me bhi product bhejna useful rahega
     });
   } catch (err) {
     console.error('addProduct error:', err);
