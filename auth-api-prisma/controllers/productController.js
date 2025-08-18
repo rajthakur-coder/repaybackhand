@@ -31,7 +31,7 @@ function safeParseInt(value, fallback = null) {
 function uploadImage(file, req) {
   if (!file || (!file.buffer && !file.path)) return "";
 
-  const uploadDir = path.join(__dirname, "..", "public", "uploads", "products");
+  const uploadDir = path.join(__dirname, "..", "uploads/products");
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
   const ext = path.extname(file.originalname || file.path).toLowerCase();
