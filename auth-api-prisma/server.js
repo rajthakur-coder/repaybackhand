@@ -36,10 +36,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-const HOST = "127.0.0.1"; 
-
 // Server Start
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, HOST, () => {
-   console.log(`Server running at http://${HOST}:${PORT}`);
-}); 
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+
+
