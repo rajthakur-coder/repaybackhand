@@ -13,7 +13,7 @@ const userRoutes = require('./routes/userRoutes');
 const productManagementRoutes = require('./routes/productManagementRoutes');
 const settingManagementRoutes = require('./routes/settingManagements');
 const msgManagementRoutes = require('./routes/msgManagementRoutes');
-
+const path = require("path"); 
 const app = express();
 
 // Global Middlewares
