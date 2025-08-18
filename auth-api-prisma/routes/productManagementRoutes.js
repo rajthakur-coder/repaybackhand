@@ -26,7 +26,7 @@ const {
   deleteProductPriceValidator,
 } = require('../validators/productManagement');
 // Apply Auth Middleware for all routes 
-router.use(authMiddleware);
+// router.use(authMiddleware);
 
 // Product Category Routes
 router.post('/category/get-list', productCategoryController.getProductCategoryList);

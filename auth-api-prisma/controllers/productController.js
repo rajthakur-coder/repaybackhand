@@ -129,7 +129,13 @@ exports.addProduct = async (req, res) => {
 
     // 👇 Image upload with full URL
     const imagePath = req.file ? uploadImage(req.file, req) : null;
-
+function sanitizeBigInt(obj) {
+  return JSON.parse(
+    JSON.stringify(obj, (key, value) =>
+      typeof value === 'bigint' ? Number(value) : value
+    )
+  );
+}
     const product = await prisma.products.create({
       data: {
         category_id,
@@ -156,7 +162,7 @@ exports.addProduct = async (req, res) => {
       success: true,
       statusCode: RESPONSE_CODES.SUCCESS,
       message: 'Product Added Successfully',
-      product // 👈 response me bhi product bhejna useful rahega
+      product: sanitizeBigInt(product) // 👈 response me bhi product bhejna useful rahega
     });
   } catch (err) {
     console.error('addProduct error:', err);
