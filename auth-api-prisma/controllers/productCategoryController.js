@@ -203,31 +203,33 @@ exports.updateProductCategory = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
-
     }
 
-    const { id, name, status } = req.body;
+    const id = parseInt(req.params.id);
+    const { name, status } = req.body;
+
+    if (!id || isNaN(id) || id <= 0) {
+        return error(res, 'Invalid or missing Product Category ID', RESPONSE_CODES.VALIDATION_ERROR, 422);
+    }
 
     try {
         const category = await prisma.product_categories.findUnique({
-            where: { id: Number(id) },
+            where: { id },
         });
 
         if (!category) {
-            return error(res, 'Product Category Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
-
+            return error(res, 'Product Category not found', RESPONSE_CODES.NOT_FOUND, 404);
         }
 
         const duplicateName = await prisma.product_categories.findFirst({
             where: {
                 name: { equals: name, mode: 'insensitive' },
-                id: { not: Number(id) },
+                id: { not: id },
             },
         });
 
         if (duplicateName) {
             return error(res, 'This Product Category already exists', RESPONSE_CODES.DUPLICATE, 409);
-
         }
 
         const slug = slugify(name, { lower: true });
@@ -238,17 +240,17 @@ exports.updateProductCategory = async (req, res) => {
             category.slug === slug &&
             category.status === status
         ) {
-            return error(res, 'No changes detected, message content is already up-to-date', RESPONSE_CODES.DUPLICATE, 409);
+            return error(res, 'No changes detected, category is already up-to-date', RESPONSE_CODES.DUPLICATE, 409);
         }
 
         await prisma.product_categories.update({
-            where: { id: Number(id) },
+            where: { id },
             data: { name, slug, status, updated_at: updatedAt },
         });
 
         await logAuditTrail({
             table_name: 'product_categories',
-            row_id: Number(category.id),
+            row_id: id,
             action: 'update',
             user_id: req.user?.id ? Number(req.user.id) : null,
             ip_address: req.ip,
@@ -257,11 +259,9 @@ exports.updateProductCategory = async (req, res) => {
         });
 
         return success(res, 'Product Category updated successfully');
-
-    } catch (error) {
-        console.error(error);
+    } catch (err) {
+        console.error(err);
         return error(res, 'Server error');
-
     }
 };
 
