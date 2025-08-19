@@ -121,11 +121,22 @@ module.exports = {
         updated_at: item.updated_at,
       }));
 
-      return success(res, 'Data fetched successfully', {
-        recordsTotal: total,
-        recordsFiltered: filteredCount,
-        data: formattedData.length > 0 ? formattedData[0] : null,
-      });
+      // return success(res, 'Data fetched successfully', {
+      //   recordsTotal: total,
+      //   recordsFiltered: filteredCount,
+      //   data: formattedData.length > 0 ? formattedData[0] : null,
+      // });
+
+      
+      return res.status(200).json({
+    success: true,
+    statusCode: 1,
+    message: 'Data fetched successfully',
+    recordsTotal: total,
+    recordsFiltered: filteredCount,
+    data: formattedData.length > 0 ? formattedData[0] : null,
+});
+
     } catch (error) {
       console.error('getProductPricingList error:', error);
       return error(res, 'Server error');

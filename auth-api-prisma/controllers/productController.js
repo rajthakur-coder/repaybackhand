@@ -251,12 +251,22 @@ exports.getProductList = async (req, res) => {
     }));
 
 
-    return success(res, 'Data fetched successfully', {
-      recordsTotal: total,
-      recordsFiltered: filteredCount,
-      data: formattedData
+    // return success(res, 'Data fetched successfully', {
+    //   recordsTotal: total,
+    //   recordsFiltered: filteredCount,
+    //   data: formattedData
 
-    });
+    // });
+
+    
+      return res.status(200).json({
+    success: true,
+    statusCode: 1,
+    message: 'Data fetched successfully',
+    recordsTotal: total,
+    recordsFiltered: filteredCount,
+    data: formattedData
+});
 
   } catch (err) {
     console.error('getProductList error:', err);
