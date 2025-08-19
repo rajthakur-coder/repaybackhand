@@ -47,7 +47,7 @@ model login_history {
   created_at       DateTime? @db.Timestamp(6)
   updated_at       DateTime? @db.Timestamp(6)
   user_id          Int?
-  serial_no        Int?
+
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

@@ -30,6 +30,7 @@ const {
 } = require('../validators/productManagement');
 
 
+
 // Product Category Routes
 router.post('/category/add', addProductCategoryValidation, productCategoryController.addProductCategory);
 router.get('/category/get-list', productCategoryController.getProductCategoryList);
