@@ -1,8 +1,10 @@
+
 const express = require('express');
-const router = express.Router();
+const router = express.Router(); 
 
 const authMiddleware  = require('../middleware/auth');
 const upload = require('../middleware/uploads');
+const { validationResult } = require('express-validator');
 
 
 //Controllers
@@ -12,7 +14,7 @@ const productPriceController = require('../controllers/productPriceController');
 
 //Validators 
 const {
-  productCategoryValidation,
+   addProductCategoryValidation,
   updateProductCategoryValidation,
   deleteCategoryValidation,
   changeCategoryStatusValidation,
@@ -28,29 +30,27 @@ const {
 } = require('../validators/productManagement');
 
 
-router.use(authMiddleware);
-
 // Product Category Routes
-router.post('/category/add', productCategoryValidation, productCategoryController.addProductCategory);
+router.post('/category/add', addProductCategoryValidation, productCategoryController.addProductCategory);
 router.get('/category/get-list', productCategoryController.getProductCategoryList);
 router.get('/category/byid/:id', productCategoryController.getProductCategoryById);
 router.put('/category/update/:id', updateProductCategoryValidation, productCategoryController.updateProductCategory);
-router.delete('/category/delete/:id', deleteCategoryValidation, productCategoryController.deleteProductCategory);
-router.post('/category/change-status/:id', changeCategoryStatusValidation, productCategoryController.changeProductCategoryStatus);
+router.delete('/category/delete/:id', deleteCategoryValidation,productCategoryController.deleteProductCategory);
+router.post('/category/change-status/:id', changeCategoryStatusValidation,  productCategoryController.changeProductCategoryStatus);
 
-// Product Routes 
-router.post('/products/add', upload.single('icon'), addProductValidation, productController.addProduct);
+// Product Routes
+router.post('/products/add', upload.single('icon'), addProductValidation,  productController.addProduct);
 router.get('/products/get-list', productController.getProductList);
 router.get('/products/byid/:id', productController.getProductById);
 router.put('/products/update/:id', upload.single('icon'), updateProductValidation, productController.updateProduct);
 router.delete('/products/delete/:id', deleteProductValidation, productController.deleteProduct);
-router.post('/products/change-status/:id', changeProductStatusValidation, productController.changeProductStatus);
+router.post('/products/change-status/:id', changeProductStatusValidation, productController.changeProductStatus );
 
 // Product Price Routes
-router.post('/prices/add', createProductPriceValidator, productPriceController.addProductPrice);
+router.post('/prices/add', createProductPriceValidator,productPriceController.addProductPrice);
 router.get('/prices/get-list', productPriceController.getProductPricingList);
 router.get('/prices/byid/:id', productPriceController.getProductPriceById);
 router.put('/prices/update/:id', updateProductPriceValidator, productPriceController.updateProductPrice);
-router.delete('/prices/delete/:id', deleteProductPriceValidator, productPriceController.deleteProductPrice);
+router.delete('/prices/delete/:id', deleteProductPriceValidator,  productPriceController.deleteProductPrice);
 
 module.exports = router;

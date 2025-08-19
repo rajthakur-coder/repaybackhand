@@ -1,5 +1,7 @@
 const { body, param } = require('express-validator');
 
+
+
 // =======================
 // Product Category Validators
 // =======================
