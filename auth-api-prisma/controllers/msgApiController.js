@@ -5,39 +5,32 @@ const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 const { logAuditTrail } = require('../services/auditTrailService');
+const {RESPONSE_CODES} = require('../utils/helper');
+const { getNextSerial, reorderSerials } = require('../utils/serial');
+const { success, error } = require('../utils/response');
+
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const RESPONSE_CODES = {
-  SUCCESS: 1,
-  VALIDATION_ERROR: 2,
-  FAILED: 0,
-  DUPLICATE: 3,
-  NOT_FOUND: 4
-};
 
 function formatISTDate(date) {
   return date ? dayjs(date).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null;
 }
 
-function apiResponse({ success = true, statusCode = RESPONSE_CODES.SUCCESS, message = '', data = null }) {
-  const response = { success, statusCode, message };
-  if (data !== undefined && data !== null) {
-    response.data = data; // only include 'data' if it's not null or undefined
-  }
-  return response;
-}
+// function apiResponse({ success = true, statusCode = RESPONSE_CODES.SUCCESS, message = '', data = null }) {
+//   const response = { success, statusCode, message };
+//   if (data !== undefined && data !== null) {
+//     response.data = data; 
+//   }
+//   return response;
+// }
 
 //Add New API 
 exports.addMsgApi = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(422).json(apiResponse({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg
-    }));
+    return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
   const { api_name, api_type, base_url, params, method, status } = req.body;
@@ -48,18 +41,21 @@ exports.addMsgApi = async (req, res) => {
     });
 
     if (existingApi) {
-      return res.status(409).json(apiResponse({
-        success: false,
-        statusCode: RESPONSE_CODES.DUPLICATE,
-        message: 'API with the same name already exists'
-      }));
+      return error(res, 'API with the same name already exists', RESPONSE_CODES.DUPLICATE, 409);
     }
 
     const dateObj = dayjs().tz('Asia/Kolkata').toDate();
 
     const newApi = await prisma.$transaction(async (tx) => {
+      const nextSerial = await getNextSerial(prisma, 'msg_apis');
+
+
       const api = await tx.msg_apis.create({
-        data: { api_name, api_type, base_url, params, method, status, created_at: dateObj, updated_at: dateObj }
+        data: { 
+          api_name, api_type, base_url, params, method, status,
+          created_at: dateObj, updated_at: dateObj,
+          serial_no: nextSerial 
+        }
       });
 
       await logAuditTrail({
@@ -75,10 +71,10 @@ exports.addMsgApi = async (req, res) => {
       return api;
     });
 
-    res.json(apiResponse({ message: 'Messaging API added successfully' }));
+return success(res, 'Message Content Added Successfully');
   } catch (err) {
     console.error(err);
-    res.status(500).json(apiResponse({ success: false, statusCode: RESPONSE_CODES.FAILED, message: 'Failed to add Messaging API' }));
+    return error(res, 'Failed to add Message Content', RESPONSE_CODES.FAILED, 500);
   }
 };
 
@@ -106,7 +102,8 @@ exports.getMsgApiList = async (req, res) => {
       where,
       skip: offset * limit,
       take: limit,
-      orderBy: { id: 'desc' }
+      orderBy: { serial_no: 'asc' }   // 👈 yaha se proper numbering dikhegi
+
     });
 
     const serializedData = data.map(item => ({
@@ -116,17 +113,14 @@ exports.getMsgApiList = async (req, res) => {
       updated_at: formatISTDate(item.updated_at)
     }));
 
-    res.json(apiResponse({
-      message: 'APIs fetched successfully',
-      data: {
-        recordsTotal: total,
-        recordsFiltered: filteredCount,
-        data: serializedData
-      }
-    }));
+     return success(res, 'Data fetched successfully', {
+      recordsTotal: total,
+      recordsFiltered: total,
+      data: serializedData
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json(apiResponse({ success: false, statusCode: RESPONSE_CODES.FAILED, message: 'Server error' }));
+    return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };
 
@@ -134,11 +128,7 @@ exports.getMsgApiList = async (req, res) => {
 exports.getMsgApiById = async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
-    return res.status(400).json(apiResponse({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: 'Valid ID is required'
-    }));
+    return error(res, 'Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
   try {
@@ -151,25 +141,18 @@ exports.getMsgApiById = async (req, res) => {
     });
 
     if (!api) {
-      return res.status(404).json(apiResponse({
-        success: false,
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Messaging API not found'
-      }));
+      return error(res, 'Message Content Not Found', RESPONSE_CODES.NOT_FOUND, 404);
     }
 
-    res.json(apiResponse({
-      message: 'API fetched successfully',
-      data: {
-        ...api,
-        id: Number(api.id),
-        created_at: formatISTDate(api.created_at),
-        updated_at: formatISTDate(api.updated_at)
-      }
-    }));
+    return success(res, 'Data fetched successfully', {
+      ...api,
+      id: Number(api.id),
+      created_at: formatISTDate(api.created_at),
+      updated_at: formatISTDate(api.updated_at)
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json(apiResponse({ success: false, statusCode: RESPONSE_CODES.FAILED, message: 'Server error' }));
+    return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };
 
@@ -177,17 +160,14 @@ exports.getMsgApiById = async (req, res) => {
 exports.updateMsgApi = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(422).json(apiResponse({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg
-    }));
+       return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
   }
 
   const { id, api_name, api_type, base_url, params, method, status } = req.body;
 
   if (!Number.isInteger(Number(id)) || Number(id) <= 0) {
-    return res.status(400).json(apiResponse({ success: false, statusCode: RESPONSE_CODES.VALIDATION_ERROR, message: 'Valid ID required' }));
+    return error(res, 'Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
   try {
@@ -218,16 +198,16 @@ exports.updateMsgApi = async (req, res) => {
       });
     });
 
-    res.json(apiResponse({ message: 'Messaging API updated successfully' }));
+    return success(res, 'Message API  updated successfully');
   } catch (err) {
     console.error(err);
     if (err.message === 'API_NOT_FOUND') {
-      return res.status(404).json(apiResponse({ success: false, statusCode: RESPONSE_CODES.NOT_FOUND, message: 'Messaging API not found' }));
+      return error(res, 'Messaging API not found', RESPONSE_CODES.NOT_FOUND, 404);
     }
     if (err.message === 'DUPLICATE_NAME') {
-      return res.status(409).json(apiResponse({ success: false, statusCode: RESPONSE_CODES.DUPLICATE, message: 'Another API with same name exists' }));
+      return error(res, 'Another API with same name exists', RESPONSE_CODES.DUPLICATE, 409);
     }
-    res.status(500).json(apiResponse({ success: false, statusCode: RESPONSE_CODES.FAILED, message: 'Server error' }));
+    return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };
 
@@ -235,24 +215,21 @@ exports.updateMsgApi = async (req, res) => {
 exports.deleteMsgApi = async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
-    return res.status(422).json(apiResponse({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: 'Valid ID is required'
-    }));
+       return error(res, 'Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
   }
 
   try {
     const api = await prisma.msg_apis.findUnique({ where: { id } });
     if (!api) {
-      return res.status(404).json(apiResponse({
-        success: false,
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Messaging API not found'
-      }));
+          return error(res, 'Message Content Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+
     }
 
     await prisma.msg_apis.delete({ where: { id } });
+
+    // 🔥 Reorder serial numbers after delete
+   await reorderSerials(prisma, 'msg_apis');
 
     await logAuditTrail({
       table_name: 'msg_apis',
@@ -264,9 +241,9 @@ exports.deleteMsgApi = async (req, res) => {
       status: 'Deleted'
     });
 
-    res.json(apiResponse({ message: 'Messaging API deleted successfully' }));
+    return success(res, 'Message API deleted successfully');
   } catch (err) {
     console.error(err);
-    res.status(500).json(apiResponse({ success: false, statusCode: RESPONSE_CODES.FAILED, message: 'Server error' }));
+    return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };

@@ -2,15 +2,9 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { validationResult } = require('express-validator');
 const { logAuditTrail } = require('../services/auditTrailService');
+const { RESPONSE_CODES } = require('../utils/helper');
+const { success, error } = require('../utils/response');
 
-
-const RESPONSE_CODES = {
-  SUCCESS: 1,
-  VALIDATION_ERROR: 2,
-  FAILED: 0,
-  DUPLICATE: 3,
-  NOT_FOUND: 4
-};
 
 function safeParseInt(value, fallback = null) {
   const n = Number.parseInt(value, 10);
@@ -28,11 +22,8 @@ module.exports = {
   async addProductPrice(req, res) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: errors.array()[0].msg
-      });
+      return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
 
     const product_id = safeParseInt(req.body.product_id);
@@ -40,30 +31,18 @@ module.exports = {
     const currency = (req.body.currency || '').trim();
 
     if (!product_id || !price || !currency) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: 'Product ID, price, and currency are required and must be valid'
-      });
+      return error(res, 'Product ID, price, and currency are required and must be valid', RESPONSE_CODES.VALIDATION_ERROR, 422);
     }
 
     try {
       const productExists = await prisma.products.findUnique({ where: { id: product_id } });
       if (!productExists) {
-        return res.status(404).json({
-          success: false,
-          statusCode: RESPONSE_CODES.NOT_FOUND,
-          message: 'Product not found'
-        });
+        return error(res, 'Product not found', RESPONSE_CODES.NOT_FOUND, 404);
       }
 
       const exists = await prisma.product_pricing.findFirst({ where: { product_id } });
       if (exists) {
-        return res.status(409).json({
-          success: false,
-          statusCode: RESPONSE_CODES.DUPLICATE,
-          message: 'This product already has a price entry.'
-        });
+        return error(res, 'This product already has a price entry.', RESPONSE_CODES.DUPLICATE, 409);
       }
 
       const Product_price = await prisma.product_pricing.create({
@@ -85,19 +64,12 @@ module.exports = {
         status: "Active"
       });
 
+      return success(res, 'Product price added successfully');
 
-      return res.status(201).json({
-        success: true,
-        statusCode: RESPONSE_CODES.SUCCESS,
-        message: 'Product price added successfully'
-      });
     } catch (error) {
       console.error('addProductPrice error:', error);
-      return res.status(500).json({
-        success: false,
-        statusCode: RESPONSE_CODES.FAILED,
-        message: 'Server error'
-      });
+      return error(res, 'Server error');
+
     }
   },
 
@@ -105,11 +77,8 @@ module.exports = {
   async getProductPricingList(req, res) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: errors.array()[0].msg,
-      });
+      return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
 
     const offset = parseInt(req.body.offset) || 0;
@@ -134,7 +103,7 @@ module.exports = {
         where,
         skip,
         take: limit,
-        orderBy: { id: 'desc' },
+        orderBy: { id: 'asc' },
         include: {
           products: {
             select: { name: true },
@@ -152,18 +121,15 @@ module.exports = {
         updated_at: item.updated_at,
       }));
 
-      return res.json({
+      return success(res, 'Data fetched successfully', {
         recordsTotal: total,
         recordsFiltered: filteredCount,
         data: formattedData.length > 0 ? formattedData[0] : null,
       });
     } catch (error) {
       console.error('getProductPricingList error:', error);
-      return res.status(500).json({
-        success: false,
-        statusCode: RESPONSE_CODES.FAILED,
-        message: 'Server error',
-      });
+      return error(res, 'Server error');
+
     }
   },
 
@@ -173,11 +139,8 @@ module.exports = {
     const id = safeParseInt(req.params.id);
 
     if (!id) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: 'Valid price ID is required',
-      });
+      return error(res, 'Price ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
 
     try {
@@ -193,11 +156,8 @@ module.exports = {
       });
 
       if (!price) {
-        return res.status(404).json({
-          success: false,
-          statusCode: RESPONSE_CODES.NOT_FOUND,
-          message: 'Product pricing not found',
-        });
+        return error(res, 'Product pricing not found', RESPONSE_CODES.NOT_FOUND, 404);
+
       }
 
       const formattedPrice = JSON.parse(
@@ -211,19 +171,14 @@ module.exports = {
       } else {
         formattedPrice.products = null;
       }
+      return success(res, 'Data fetched successfully', {
 
-      return res.json({
-        success: true,
-        statusCode: RESPONSE_CODES.SUCCESS,
         data: formattedPrice,
       });
     } catch (error) {
       console.error('getProductPriceById error:', error);
-      return res.status(500).json({
-        success: false,
-        statusCode: RESPONSE_CODES.FAILED,
-        message: 'Server error',
-      });
+      return error(res, 'Server error');
+
     }
   },
 
@@ -232,20 +187,13 @@ module.exports = {
   async updateProductPrice(req, res) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: errors.array()[0].msg,
-      });
+      return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
 
-    const id = safeParseInt(req.body.id);
+    const id = safeParseInt(req.params.id);
     if (!id) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: 'Price ID is required',
-      });
+      return error(res, 'Price ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
     }
 
     const product_id = safeParseInt(req.body.product_id);
@@ -253,30 +201,20 @@ module.exports = {
     const currency = (req.body.currency || '').trim();
 
     if (!product_id || !price || !currency) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: 'Product ID, price, and currency are required and must be valid',
-      });
+      return error(res, 'Product ID, price, and currency are required and must be valid', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
 
     try {
       const existing = await prisma.product_pricing.findUnique({ where: { id } });
       if (!existing) {
-        return res.status(404).json({
-          success: false,
-          statusCode: RESPONSE_CODES.NOT_FOUND,
-          message: 'Product price not found',
-        });
+        return error(res, 'Product price Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+
       }
 
       const productExists = await prisma.products.findUnique({ where: { id: product_id } });
       if (!productExists) {
-        return res.status(404).json({
-          success: false,
-          statusCode: RESPONSE_CODES.NOT_FOUND,
-          message: 'Product not found',
-        });
+        return error(res, 'Product not found', RESPONSE_CODES.NOT_FOUND, 404);
       }
 
       const duplicate = await prisma.product_pricing.findFirst({
@@ -287,11 +225,8 @@ module.exports = {
       });
 
       if (duplicate) {
-        return res.status(409).json({
-          success: false,
-          statusCode: RESPONSE_CODES.DUPLICATE,
-          message: 'Another price entry for this product already exists',
-        });
+        return error(res, 'No changes detected, Product price is already up-to-date', RESPONSE_CODES.DUPLICATE, 409);
+
       }
 
       const isSame =
@@ -301,11 +236,8 @@ module.exports = {
 
 
       if (isSame) {
-        return res.status(200).json({
-          success: true,
-          statusCode: RESPONSE_CODES.DUPLICATE,
-          message: 'Price is already updated with the same data',
-        });
+        return error(res, 'No changes detected, Product price is already up-to-date', RESPONSE_CODES.DUPLICATE, 409);
+
       }
 
       await prisma.product_pricing.update({
@@ -329,18 +261,12 @@ module.exports = {
         status: 'Active'
       });
 
-      return res.json({
-        success: true,
-        statusCode: RESPONSE_CODES.SUCCESS,
-        message: 'Product price updated successfully',
-      });
+      return success(res, 'Product price updated successfully');
+
     } catch (error) {
       console.error('updateProductPrice error:', error);
-      return res.status(500).json({
-        success: false,
-        statusCode: RESPONSE_CODES.FAILED,
-        message: 'Failed to update product price',
-      });
+      return error(res, 'Server error');
+
     }
   },
 
@@ -349,21 +275,15 @@ module.exports = {
     const id = safeParseInt(req.params.id);
 
     if (!id) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: 'Valid price ID is required'
-      });
+      return error(res, 'product Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
 
     try {
       const existing = await prisma.product_pricing.findUnique({ where: { id } });
       if (!existing) {
-        return res.status(404).json({
-          success: false,
-          statusCode: RESPONSE_CODES.NOT_FOUND,
-          message: 'Product price not found'
-        });
+        return error(res, 'Product price Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+
       }
 
       await prisma.product_pricing.delete({ where: { id } });
@@ -378,18 +298,12 @@ module.exports = {
         status: 'Deleted'
       });
 
-      return res.json({
-        success: true,
-        statusCode: RESPONSE_CODES.SUCCESS,
-        message: 'Product price deleted successfully'
-      });
+      return success(res, 'Product price deleted successfully');
+
     } catch (error) {
       console.error('deleteProductPrice error:', error);
-      return res.status(500).json({
-        success: false,
-        statusCode: RESPONSE_CODES.FAILED,
-        message: 'Server error'
-      });
+      return error(res, 'Server error');
+
     }
   }
 };

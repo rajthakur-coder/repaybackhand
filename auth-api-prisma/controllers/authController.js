@@ -5,24 +5,14 @@ const { PrismaClient } = require('@prisma/client');
 const { generateToken, verifyToken } = require('../utils/jwt');
 const prisma = new PrismaClient();
 const Helper = require('../utils/helper');
-// const { logAuditTrail } = require('../services/auditTrailService');
-// const RESPONSE_CODES = require('../constants/responseCodes'); // <-- नया constants फाइल से
-
-const RESPONSE_CODES = {
-    SUCCESS: 1,
-    VALIDATION_ERROR: 2,
-    FAILED: 0,
-    DUPLICATE: 3,
-    NOT_FOUND: 4
-};
-
 const {
     randomUUID,
     maskEmail,
     maskMobile,
     sendOtpRegistration,
     getClientIp,
-    useragent
+    useragent,
+    RESPONSE_CODES
 } = require('../utils/helper');
 
 // Register
@@ -66,18 +56,6 @@ exports.register = async (req, res) => {
             }
         });
 
-
-        // await logAuditTrail({
-        //   table_name: 'temp_users',
-        //   row_id: tempUser.id,
-        //   action: 'register',
-        //   created_by: null, // not logged in yet
-        //   ip_address: req.ip,
-        //   latitude: req.body.latitude,
-        //   longitude: req.body.longitude,
-        //   remark: 'User started registration process',
-        //   status: 'Pending Verification'
-        // });
 
         const emailOtp = await sendOtpRegistration(email, 'email', tempUser.id);
         const mobileOtp = await sendOtpRegistration(mobile_no, 'mobile', tempUser.id);
@@ -144,7 +122,7 @@ exports.loginUser = async (req, res) => {
                 await Helper.sendOtpRegistration(tempUser.mobile_no, 'mobile', tempUser.id);
                 return res.status(200).json({
                     success: false,
-                    statusCode: 5,
+                    statusCode: RESPONSE_CODES.VERIFICATION_PENDING,
                     verify: 'mobile',
                     message: 'Mobile verification pending',
                     info: Helper.maskMobile(tempUser.mobile_no),
@@ -155,7 +133,7 @@ exports.loginUser = async (req, res) => {
                 await Helper.sendOtpRegistration(tempUser.email, 'email', tempUser.id);
                 return res.status(200).json({
                     success: false,
-                    statusCode: 5,
+                    statusCode: RESPONSE_CODES.VERIFICATION_PENDING,
                     verify: 'email',
                     message: 'Email verification pending',
                     info: Helper.maskEmail(tempUser.email),
@@ -215,16 +193,6 @@ exports.loginUser = async (req, res) => {
                     updated_at: new Date(),
                 },
             });
-
-            //           await logAuditTrail({
-            //     table_name: 'users',
-            //     row_id: user.id,
-            //     action: 'login',
-            //     user_id: user.id,
-            //     ip_address: ip,
-            //     remark: 'Incorrect password attempt',
-            //     status: 'Failed'
-            // });
 
             return res.status(401).json({
                 success: false,
@@ -425,16 +393,6 @@ exports.verifyOtp = async (req, res) => {
         });
 
         await prisma.temp_users.delete({ where: { id: tempUser.id } });
-
-        //      await logAuditTrail({
-        //     table_name: 'users',
-        //     row_id: newUser.id,
-        //     action: 'verify_otp',
-        //     user_id: newUser.id,
-        //     ip_address: req.ip,
-        //     remark: 'User verified via email and mobile OTP',
-        //     status: 'Verified'
-        //   });
 
         return res.status(200).json({
             success: true,

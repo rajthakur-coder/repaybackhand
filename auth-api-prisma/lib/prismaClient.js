@@ -1,7 +1,8 @@
-// lib/prismaClient.js
 const { PrismaClient } = require('@prisma/client');
 const { AsyncLocalStorage } = require('async_hooks');
 const dayjs = require('dayjs');
+const prisma = new PrismaClient();
+
 
 const asyncLocalStorage = new AsyncLocalStorage();
 
@@ -24,10 +25,6 @@ function extractRowIdFromResult(result) {
   return null;
 }
 
-// PrismaClient instance
-const prisma = new PrismaClient();
-
-// Prisma 6.x middleware using $extends
 prisma.$extends({
   result: {
     allModels: {
@@ -35,8 +32,8 @@ prisma.$extends({
         const result = await next(params);
 
         try {
-          const model = params.model;   // e.g., 'users', 'products'
-          const action = params.action; // e.g., 'create', 'update', 'delete'
+          const model = params.model;   
+          const action = params.action;
           const allowed = ['create', 'update', 'delete'];
 
           if (model && allowed.includes(action)) {
@@ -51,7 +48,6 @@ prisma.$extends({
             const rowId = extractRowIdFromResult(result);
             const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
 
-            // Fire-and-forget insert into audit_trail
             prisma.$executeRaw`
               INSERT INTO audit_trail (
                 table_name, row_id, action, created_by, created_at,

@@ -8,18 +8,15 @@ const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 const { logAuditTrail } = require('../services/auditTrailService');
+const { RESPONSE_CODES } = require('../utils/helper');
+const { getNextSerial, reorderSerials } = require('../utils/serial');
+const { success, error } = require('../utils/response');
+
+
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-// Response codes
-const RESPONSE_CODES = {
-  SUCCESS: 1,
-  VALIDATION_ERROR: 2,
-  FAILED: 0,
-  DUPLICATE: 3,
-  NOT_FOUND: 4
-};
 
 const ISTFormat = (d) => (d ? dayjs(d).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null);
 
@@ -48,7 +45,6 @@ function uploadImage(file, req) {
     fs.copyFileSync(file.path, filepath);
   }
 
-  // 👇 Ab full URL return karenge
   return `${req.protocol}://${req.get("host")}/uploads/products/${filename}`;
 }
 
@@ -69,11 +65,8 @@ function deleteImageIfExists(relativePath) {
 exports.addProduct = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg
-    });
+    return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
   }
 
   try {
@@ -83,27 +76,16 @@ exports.addProduct = async (req, res) => {
     const status = req.body.status || 'Inactive';
 
     if (!category_id) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: 'Valid category_id is required'
-      });
+      return error(res, 'product category Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
     if (!name) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: 'Product name is required'
-      });
+      return error(res, 'product Name is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
     }
 
     const category = await prisma.product_categories.findUnique({ where: { id: category_id } });
     if (!category) {
-      return res.status(404).json({
-        success: false,
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Category not found'
-      });
+      return error(res, 'Category not found', RESPONSE_CODES.NOT_FOUND, 404);
     }
 
     const existingProduct = await prisma.products.findFirst({
@@ -114,11 +96,7 @@ exports.addProduct = async (req, res) => {
     });
 
     if (existingProduct) {
-      return res.status(409).json({
-        success: false,
-        statusCode: RESPONSE_CODES.DUPLICATE,
-        message: 'Product with the same name already exists in this category.'
-      });
+      return error(res, 'This product already exists', RESPONSE_CODES.DUPLICATE, 409);
     }
 
     let slug = slugify(name, { lower: true, strict: true });
@@ -127,26 +105,53 @@ exports.addProduct = async (req, res) => {
       slug = `${slug}-${Date.now()}`;
     }
 
-    // 👇 Image upload with full URL
+
     const imagePath = req.file ? uploadImage(req.file, req) : null;
-function sanitizeBigInt(obj) {
-  return JSON.parse(
-    JSON.stringify(obj, (key, value) =>
-      typeof value === 'bigint' ? Number(value) : value
-    )
-  );
-}
+    function sanitizeBigInt(obj) {
+      return JSON.parse(
+        JSON.stringify(obj, (key, value) =>
+          typeof value === 'bigint' ? Number(value) : value
+        )
+      );
+    }
+    // const product = await prisma.products.create({
+    //   data: {
+    //     category_id,
+    //     name,
+    //     slug,
+    //     description,
+    //     icon: imagePath, // yaha ab full URL save hoga
+    //     status,
+    //     created_at: new Date()
+    //   }
+    // });
+    const nextSerial = await getNextSerial(prisma, 'products');
+
     const product = await prisma.products.create({
       data: {
         category_id,
         name,
         slug,
         description,
-        icon: imagePath, // yaha ab full URL save hoga
+        icon: imagePath,
         status,
-        created_at: new Date()
+        created_at: new Date(),
+        serial_no: nextSerial
+
       }
+      // select: {
+      //   id: true,
+      //   category_id: true,
+      //   name: true,
+      //   slug: true,
+      //   description: true,
+      //   icon: true,
+      //   status: true,
+      //   created_at: true,
+      //   serial_no: true   
+      // }
     });
+
 
     await logAuditTrail({
       table_name: 'products',
@@ -158,19 +163,13 @@ function sanitizeBigInt(obj) {
       status: product.status
     });
 
-    return res.status(201).json({
-      success: true,
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Product Added Successfully',
-      product: sanitizeBigInt(product) // 👈 response me bhi product bhejna useful rahega
+    return success(res, 'Product added successfully', {
+      product: sanitizeBigInt(product)
     });
   } catch (err) {
     console.error('addProduct error:', err);
-    return res.status(500).json({
-      success: false,
-      statusCode: RESPONSE_CODES.FAILED,
-      message: 'Product could not be added'
-    });
+    return error(res, 'Server error');
+
   }
 };
 
@@ -180,11 +179,8 @@ exports.getProductList = async (req, res) => {
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: errors.array()[0].msg,
-      });
+      return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
 
     const offset = parseInt(req.body.offset) || 0; // page number
@@ -206,18 +202,43 @@ exports.getProductList = async (req, res) => {
     const total = await prisma.products.count();
     const filteredCount = await prisma.products.count({ where });
 
+    // const data = await prisma.products.findMany({
+    //   where,
+    //   skip: offset * limit,
+    //   take: limit,
+    //   orderBy: { id: 'asc' },
+    //   include: {
+    //     product_categories: { select: { id: true, name: true } }
+    //   }
+    // });
+
     const data = await prisma.products.findMany({
       where,
       skip: offset * limit,
       take: limit,
-      orderBy: { id: 'asc' },
+      orderBy: { serial_no: 'asc' },
       include: {
         product_categories: { select: { id: true, name: true } }
       }
     });
 
+
+    // const formattedData = data.map(p => ({
+    //   id: p.id.toString(),
+    //   category_id: p.category_id.toString(),
+    //   category_name: p.product_categories ? p.product_categories.name : null,
+    //   name: p.name,
+    //   slug: p.slug,
+    //   description: p.description || null,
+    //   icon: p.icon || null,
+    //   status: p.status || null,
+    //   created_at: p.created_at ? ISTFormat(p.created_at) : null,
+    //   updated_at: p.updated_at ? ISTFormat(p.updated_at) : null
+    // }));
+
     const formattedData = data.map(p => ({
       id: p.id.toString(),
+      serial_no: p.serial_no,
       category_id: p.category_id.toString(),
       category_name: p.product_categories ? p.product_categories.name : null,
       name: p.name,
@@ -229,7 +250,8 @@ exports.getProductList = async (req, res) => {
       updated_at: p.updated_at ? ISTFormat(p.updated_at) : null
     }));
 
-    return res.json({
+
+    return success(res, 'Data fetched successfully', {
       recordsTotal: total,
       recordsFiltered: filteredCount,
       data: formattedData
@@ -238,11 +260,7 @@ exports.getProductList = async (req, res) => {
 
   } catch (err) {
     console.error('getProductList error:', err);
-    return res.status(500).json({
-      success: false,
-      statusCode: RESPONSE_CODES.FAILED,
-      message: 'Server error'
-    });
+    return error(res, 'Server error');
   }
 };
 
@@ -251,20 +269,14 @@ exports.getProductList = async (req, res) => {
 exports.getProductById = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg,
-    });
+    return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
   }
   const id = safeParseInt(req.params.id);
   if (!id) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: 'Product ID is required'
-    });
+    return error(res, 'Product ID Not Found', RESPONSE_CODES.NOT_FOUND, 404);
   }
+
 
   try {
     const product = await prisma.products.findUnique({
@@ -273,15 +285,26 @@ exports.getProductById = async (req, res) => {
     });
 
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Product not found'
-      });
+      return error(res, 'Product Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+
     }
+
+    // const formattedProduct = {
+    //   id: Number(product.id),
+    //   category_id: Number(product.category_id),
+    //   category_name: product.product_categories ? product.product_categories.name : null,
+    //   name: product.name,
+    //   slug: product.slug,
+    //   description: product.description,
+    //   icon: product.icon,
+    //   status: product.status,
+    //   created_at: ISTFormat(product.created_at),
+    //   updated_at: ISTFormat(product.updated_at)
+    // };
 
     const formattedProduct = {
       id: Number(product.id),
+      serial_no: product.serial_no,
       category_id: Number(product.category_id),
       category_name: product.product_categories ? product.product_categories.name : null,
       name: product.name,
@@ -293,40 +316,30 @@ exports.getProductById = async (req, res) => {
       updated_at: ISTFormat(product.updated_at)
     };
 
-    return res.json({
+
+    return success(res, 'Data fetched successfully', {
+
       statusCode: RESPONSE_CODES.SUCCESS,
       message: 'Product fetched successfully',
       data: formattedProduct
     });
-  } catch (err) {
-    console.error('getProductById error:', err);
-    return res.status(500).json({
-      success: false,
-      statusCode: RESPONSE_CODES.FAILED,
-      message: 'Server error'
-    });
+  } catch (error) {
+    console.error('getProductById error:', error);
+    return error(res, 'Server error');
+
   }
 };
 
 // Update product
 exports.updateProduct = async (req, res) => {
-
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg,
-    });
+    return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
-  const id = safeParseInt(req.body.id);
+  const id = safeParseInt(req.params.id);
   if (!id) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: 'Product ID is required',
-    });
+    return error(res, 'Product ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
   try {
@@ -341,28 +354,16 @@ exports.updateProduct = async (req, res) => {
     const name = (rawName || '').trim();
 
     if (!category_id) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: 'Valid category_id is required',
-      });
+      return error(res, 'Category ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
     }
 
     if (!name) {
-      return res.status(422).json({
-        success: false,
-        statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-        message: 'Product name is required',
-      });
+      return error(res, 'Product name is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
     }
 
     const existing = await prisma.products.findUnique({ where: { id } });
     if (!existing) {
-      return res.status(404).json({
-        success: false,
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Product not found',
-      });
+      return error(res, 'Product not found', RESPONSE_CODES.NOT_FOUND, 404);
     }
 
     const isSame =
@@ -373,13 +374,10 @@ exports.updateProduct = async (req, res) => {
       !req.file;
 
     if (isSame) {
-      return res.status(200).json({
-        success: false,
-        statusCode: RESPONSE_CODES.DUPLICATE,
-        message: 'Product is already updated with the same data',
-      });
+      return error(res, 'No changes detected, product is already up-to-date', RESPONSE_CODES.DUPLICATE, 409);
     }
 
+    // Duplicate name check
     const duplicate = await prisma.products.findFirst({
       where: {
         id: { not: id },
@@ -389,14 +387,19 @@ exports.updateProduct = async (req, res) => {
     });
 
     if (duplicate) {
-      return res.status(409).json({
-        success: false,
-        statusCode: RESPONSE_CODES.DUPLICATE,
-        message: 'Another product with the same name exists in this category',
-      });
+      return error(res, 'Another product with the same name exists in this category', RESPONSE_CODES.DUPLICATE, 409);
     }
 
-    const slug = slugify(name, { lower: true, strict: true });
+    // Generate unique slug
+    let slug = slugify(name, { lower: true, strict: true });
+    const slugExists = await prisma.products.findFirst({
+      where: { id: { not: id }, slug },
+    });
+    if (slugExists) {
+      slug = `${slug}-${Date.now()}`;
+    }
+
+
     const updatePayload = {
       name,
       slug,
@@ -406,8 +409,9 @@ exports.updateProduct = async (req, res) => {
       category_id,
     };
 
+
     if (req.file) {
-      const newImagePath = uploadImage(req.file);
+      const newImagePath = uploadImage(req.file, req);
       if (existing.icon) deleteImageIfExists(existing.icon);
       updatePayload.icon = newImagePath;
     }
@@ -417,7 +421,7 @@ exports.updateProduct = async (req, res) => {
       data: updatePayload,
     });
 
-
+    // Log audit trail
     await logAuditTrail({
       table_name: 'products',
       row_id: id,
@@ -425,22 +429,13 @@ exports.updateProduct = async (req, res) => {
       user_id: req.user?.id || null,
       ip_address: req.ip,
       remark: `Product "${name}" updated`,
-      status
+      status,
     });
 
-
-    return res.json({
-      success: true,
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Product updated successfully',
-    });
-  } catch (err) {
-    console.error('updateProduct error:', err);
-    return res.status(500).json({
-      success: false,
-      statusCode: RESPONSE_CODES.FAILED,
-      message: 'Failed to update product',
-    });
+    return success(res, `Product updated successfully`);
+  } catch (error) {
+    console.error('updateProduct error:', error);
+    return error(res, 'Failed to update product', RESPONSE_CODES.FAILED, 500);
   }
 };
 
@@ -448,34 +443,27 @@ exports.updateProduct = async (req, res) => {
 exports.deleteProduct = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg,
-    });
+    return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
   }
   const id = safeParseInt(req.params.id);
   if (!id) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: 'Product ID is required'
-    });
+    return error(res, 'product Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
   }
 
   try {
     const product = await prisma.products.findUnique({ where: { id } });
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Product not found'
-      });
+      return error(res, 'Product Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+
     }
 
     if (product.icon) deleteImageIfExists(product.icon);
 
     await prisma.products.delete({ where: { id } });
+
+    await reorderSerials(prisma, 'products');
 
     await logAuditTrail({
       table_name: 'products',
@@ -488,18 +476,11 @@ exports.deleteProduct = async (req, res) => {
     });
 
 
-    return res.json({
-      success: true,
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Product deleted successfully'
-    });
-  } catch (err) {
-    console.error('deleteProduct error:', err);
-    return res.status(500).json({
-      success: false,
-      statusCode: RESPONSE_CODES.FAILED,
-      message: 'Failed to delete product'
-    });
+    return success(res, 'Product deleted successfully');
+
+  } catch (error) {
+    console.error('deleteProduct error:', error);
+    return error(res, 'Failed to delete Product', RESPONSE_CODES.FAILED, 500);
   }
 };
 
@@ -507,55 +488,35 @@ exports.deleteProduct = async (req, res) => {
 exports.changeProductStatus = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg,
-    });
+    return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
-  const id = safeParseInt(req.body.id);
-  const status = req.body.status;
+
+  const id = safeParseInt(req.params.id); // get id from params
+  const { status } = req.body;
 
   if (!id) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: 'Product ID is required'
-    });
+    return error(res, 'Product Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
   const validStatuses = ['Active', 'Inactive'];
   if (!validStatuses.includes(status)) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: 'Invalid status value'
-    });
+    return error(res, 'Invalid status value', RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
   try {
     const product = await prisma.products.findUnique({ where: { id } });
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Product not found'
-      });
+      return error(res, 'Product Not Found', RESPONSE_CODES.NOT_FOUND, 404);
     }
 
     if (product.status === status) {
-      return res.status(200).json({
-        success: true,
-        statusCode: RESPONSE_CODES.DUPLICATE,
-        message: `Product status is already '${status}'. No update needed.`
-      });
+      return error(res, 'Product status is already up-to-date', RESPONSE_CODES.DUPLICATE, 409);
     }
 
     await prisma.products.update({
       where: { id },
       data: { status, updated_at: new Date() }
     });
-
 
     await logAuditTrail({
       table_name: 'products',
@@ -567,18 +528,10 @@ exports.changeProductStatus = async (req, res) => {
       status
     });
 
+    return success(res, 'Product status updated successfully');
 
-    return res.json({
-      success: true,
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Product status updated successfully'
-    });
-  } catch (err) {
-    console.error('changeProductStatus error:', err);
-    return res.status(500).json({
-      success: false,
-      statusCode: RESPONSE_CODES.FAILED,
-      message: 'Failed to update product status'
-    });
+  } catch (error) {
+    console.error('changeProductStatus error:', error);
+    return error(res, 'Server error');
   }
 };

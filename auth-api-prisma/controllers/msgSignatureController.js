@@ -5,17 +5,19 @@ const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 const { logAuditTrail } = require('../services/auditTrailService');
+const {RESPONSE_CODES} = require('../utils/helper');
+
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const RESPONSE_CODES = {
-  SUCCESS: 1,
-  VALIDATION_ERROR: 2,
-  FAILED: 0,
-  DUPLICATE: 3,
-  NOT_FOUND: 4
-};
+// const RESPONSE_CODES = {
+//   SUCCESS: 1,
+//   VALIDATION_ERROR: 2,
+//   FAILED: 0,
+//   DUPLICATE: 3,
+//   NOT_FOUND: 4
+// };
 
 function formatISTDate(date) {
   return date ? dayjs(date).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null;

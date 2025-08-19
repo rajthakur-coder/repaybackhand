@@ -5,17 +5,14 @@ const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 const { logAuditTrail } = require('../services/auditTrailService');
+const {RESPONSE_CODES} = require('../utils/helper');
+const { getNextSerial, reorderSerials } = require('../utils/serial');
+const { success, error } = require('../utils/response');
+
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const RESPONSE_CODES = {
-  SUCCESS: 1,
-  VALIDATION_ERROR: 2,
-  FAILED: 0,
-  DUPLICATE: 3,
-  NOT_FOUND: 4
-};
 
 const VALID_STATUS = ['Active', 'Inactive'];
 
@@ -27,11 +24,8 @@ function formatISTDate(date) {
 exports.addServiceSwitching = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg
-    });
+      return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
   }
 
   const {
@@ -82,9 +76,13 @@ exports.addServiceSwitching = async (req, res) => {
     }
 
     const dateObj = dayjs().tz('Asia/Kolkata').toDate();
+ 
+
+const nextSerial = await getNextSerial(prisma, 'service_switchings');
 
     const newData = await prisma.service_switchings.create({
       data: {
+        serial_no: nextSerial,
         api_id: BigInt(api_id),
         product_id: BigInt(product_id),
         api_code: String(api_code),
@@ -110,20 +108,12 @@ exports.addServiceSwitching = async (req, res) => {
       status: 'Created'
     });
 
-    res.json({
-      success: true,
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Service Switching Added Successfully'
-    });
+       return success(res, 'Message Content Added Successfully');
 
   } catch (err) {
     console.error('Add Service Switching Error:', err);
-    res.status(500).json({
-      success: false,
-      statusCode: RESPONSE_CODES.FAILED,
-      message: err.message || 'Failed to add Service Switching',
-      error: err
-    });
+       return error(res, 'Failed to add Message Content');
+
   }
 };
 
@@ -153,8 +143,8 @@ exports.getServiceSwitchingList = async (req, res) => {
       where,
       skip: offset * limit,
       take: limit,
-      orderBy: { id: 'asc' },
-      include: { apis: true, products: true }
+      orderBy: { serial_no: 'asc' },
+      include: { msg_apis: true, products: true }
     });
 
     const formattedData = data.map((item, index) => {
@@ -163,7 +153,8 @@ exports.getServiceSwitchingList = async (req, res) => {
       if (item.flat_per === 'percent') purchaseText = `Commission @ ${item.commission_surcharge} %`;
 
       return {
-        id: index + 1 + offset * limit,
+        id: item.id.toString(),
+        serial_no: item.serial_no,
         api_name: item.apis?.api_name || '',
         product: item.products?.name || '',
         apiServiceCode: item.api_code || '0',
@@ -184,23 +175,18 @@ exports.getServiceSwitchingList = async (req, res) => {
 exports.getServiceSwitchingById = async (req, res) => {
   const id = BigInt(req.params.id);
   if (!id) {
-    return res.status(400).json({
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: 'Id is required'
-    });
+      if (!id) return error(res, 'Id is required', RESPONSE_CODES.VALIDATION_ERROR);
+
   }
 
   try {
     const data = await prisma.service_switchings.findUnique({
       where: { id },
-      include: { apis: { select: { api_name: true } }, products: { select: { name: true } } }
+      include: { msg_apis: { select: { api_name: true } }, products: { select: { name: true } } }
     });
 
     if (!data) {
-      return res.status(404).json({
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Invalid id found'
-      });
+     return error(res, 'Service Switching not found', RESPONSE_CODES.NOT_FOUND);
     }
 
     const formattedData = {
@@ -221,14 +207,11 @@ exports.getServiceSwitchingById = async (req, res) => {
       productsname: data.products?.name || null
     };
 
-    res.json({
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Data fetched successfully',
-      data: formattedData
-    });
+      return res.json({ success: true, statusCode: RESPONSE_CODES.SUCCESS, message: 'Data fetched successfully', data: formattedData });
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, statusCode: RESPONSE_CODES.FAILED, message: 'Server error' });
+    return error(res, 'Server error', RESPONSE_CODES.FAILED);
   }
 };
 
@@ -236,11 +219,8 @@ exports.getServiceSwitchingById = async (req, res) => {
 exports.updateServiceSwitching = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg
-    });
+   return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
   }
 
   const {
@@ -260,11 +240,8 @@ exports.updateServiceSwitching = async (req, res) => {
   try {
     const existing = await prisma.service_switchings.findUnique({ where: { id: BigInt(id) } });
     if (!existing) {
-      return res.status(404).json({
-        success: false,
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Service Switching Not Found'
-      });
+            return error(res, 'Message Content Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+
     }
 
     const duplicate = await prisma.service_switchings.findFirst({
@@ -275,11 +252,8 @@ exports.updateServiceSwitching = async (req, res) => {
       }
     });
     if (duplicate) {
-      return res.status(409).json({
-        success: false,
-        statusCode: RESPONSE_CODES.DUPLICATE,
-        message: 'Another Service Switching with same API and Product already exists'
-      });
+    return error(res, 'This Message Content already exists', RESPONSE_CODES.DUPLICATE, 409);
+
     }
 
     const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
@@ -311,14 +285,11 @@ exports.updateServiceSwitching = async (req, res) => {
       status: 'Updated'
     });
 
-    res.json({
-      success: true,
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Service Switching updated successfully'
-    });
+   return success(res, 'Message Content Updated Successfully');
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, statusCode: RESPONSE_CODES.FAILED, message: 'Server error' });
+    return error(res, 'Server error', RESPONSE_CODES.FAILED);
   }
 };
 
@@ -336,6 +307,10 @@ exports.deleteServiceSwitching = async (req, res) => {
   try {
     await prisma.service_switchings.delete({ where: { id } });
 
+    // 🔥 Reorder serial_no after delete
+await reorderSerials(prisma, 'service_switchings');
+
+
     await logAuditTrail({
       table_name: 'service_switchings',
       row_id: id,
@@ -346,20 +321,14 @@ exports.deleteServiceSwitching = async (req, res) => {
       status: 'Deleted'
     });
 
-    res.json({
-      success: true,
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Service Switching deleted successfully'
-    });
+   return success(res, 'Message Content Added Successfully');
+
   } catch (err) {
     console.error(err);
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
-      return res.status(404).json({
-        success: false,
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Service Switching Not found'
-      });
+            return error(res, 'Message Content Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+
     }
-    res.status(500).json({ success: false, statusCode: RESPONSE_CODES.FAILED, message: 'Server error' });
+    return error(res, 'Server error', RESPONSE_CODES.FAILED);
   }
 };

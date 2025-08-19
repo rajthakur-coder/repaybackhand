@@ -7,6 +7,184 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model audit_trail {
+  id          BigInt    @id @default(autoincrement())
+  table_name  String    @db.VarChar(255)
+  row_id      Int
+  action      String    @db.VarChar(20)
+  created_by  Int?
+  created_at  DateTime? @db.Timestamp(6)
+  updated_by  Int?
+  updated_at  DateTime? @db.Timestamp(6)
+  approved_by Int?
+  approved_at DateTime? @db.Timestamp(6)
+  verified_by BigInt?
+  verified_at DateTime? @db.Timestamp(6)
+  rejected_by Int?
+  rejected_at DateTime? @db.Timestamp(6)
+  deleted_by  Int?
+  deleted_at  DateTime? @db.Timestamp(6)
+  ip_address  String?   @db.VarChar(45)
+  latitude    Decimal?  @db.Decimal(10, 7)
+  longitude   Decimal?  @db.Decimal(10, 7)
+  remark      String?
+  status      String?   @db.VarChar(50)
+  serial_no   Int?
+}
+
+model login_history {
+  id               BigInt    @id @default(autoincrement())
+  device           String?   @db.VarChar(190)
+  operating_system String?   @db.VarChar(190)
+  browser          String?   @db.VarChar(190)
+  ip_address       String?   @db.VarChar(50)
+  latitude         Decimal?  @db.Decimal(10, 7)
+  longitude        Decimal?  @db.Decimal(10, 7)
+  location         String?
+  status           String?   @db.VarChar(20)
+  user_agent       String?
+  created_at       DateTime? @db.Timestamp(6)
+  updated_at       DateTime? @db.Timestamp(6)
+  user_id          Int?
+  serial_no        Int?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model msg_apis {
+  id                 BigInt               @id @default(autoincrement())
+  api_name           String               @db.VarChar(255)
+  api_type           String               @db.VarChar(10)
+  base_url           String
+  params             String?
+  method             String               @db.VarChar(6)
+  status             String               @db.VarChar(8)
+  created_at         DateTime             @db.Timestamp(6)
+  updated_at         DateTime             @db.Timestamp(6)
+  serial_no          Int?
+  msg_logs           msg_logs[]
+  service_switchings service_switchings[]
+}
+
+model msg_contents {
+  id                   Int      @id @default(autoincrement())
+  message_type         String?  @db.VarChar(255)
+  send_sms             String?  @default("Yes") @db.VarChar(10)
+  send_whatsapp        String?  @default("Yes") @db.VarChar(10)
+  send_email           String?  @default("Yes") @db.VarChar(10)
+  send_notification    String?  @default("No") @db.VarChar(10)
+  sms_template_id      String?  @db.VarChar(255)
+  sms_content          String?
+  whatsapp_content     String?
+  mail_subject         String?  @db.VarChar(255)
+  mail_content         String?
+  notification_title   String?  @db.VarChar(255)
+  notification_content String?
+  keywords             String?
+  created_at           DateTime @db.Timestamp(6)
+  updated_at           DateTime @db.Timestamp(6)
+  serial_no            Int?
+}
+
+model msg_logs {
+  id           BigInt   @id @default(autoincrement())
+  api_id       BigInt
+  numbers      String
+  message      String
+  base_url     String
+  params       String
+  api_response String
+  created_at   DateTime @db.Timestamp(6)
+  updated_at   DateTime @db.Timestamp(6)
+  serial_no    Int?
+  msg_apis     msg_apis @relation(fields: [api_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_msg_logs_api")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model msg_signature {
+  id             BigInt   @id @default(autoincrement())
+  signature_type String   @db.VarChar(10)
+  signature      String
+  status         String   @db.VarChar(8)
+  created_at     DateTime @db.Timestamp(6)
+  updated_at     DateTime @db.Timestamp(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model otp_verifications {
+  id          Int         @id @default(autoincrement())
+  otp         Int
+  expires_at  DateTime    @db.Timestamp(6)
+  is_verified Boolean?    @default(false)
+  created_at  DateTime    @db.Timestamp(6)
+  updated_at  DateTime?   @db.Timestamp(6)
+  user_id     Int?
+  type        String?     @db.VarChar(10)
+  temp_users  temp_users? @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_temp_user")
+
+  @@index([user_id, type], map: "idx_user_id_type")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model product_categories {
+  id         BigInt     @id @default(autoincrement())
+  name       String     @unique @db.VarChar(100)
+  slug       String     @unique @db.VarChar(100)
+  status     String?    @default("Active") @db.VarChar(8)
+  created_at DateTime?  @db.Timestamp(6)
+  updated_at DateTime?  @db.Timestamp(6)
+  serial_no  Int?
+  products   products[]
+}
+
+model product_pricing {
+  id         BigInt    @id @default(autoincrement())
+  product_id BigInt
+  price      Decimal   @db.Decimal(10, 2)
+  currency   String?   @default("INR") @db.VarChar(10)
+  created_at DateTime? @db.Timestamp(6)
+  updated_at DateTime? @db.Timestamp(6)
+  products   products  @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model products {
+  id                 BigInt               @id @default(autoincrement())
+  category_id        BigInt
+  name               String               @db.VarChar(100)
+  slug               String               @unique @db.VarChar(100)
+  description        String?
+  icon               String?              @db.VarChar(255)
+  status             String?              @default("Active") @db.VarChar(8)
+  created_at         DateTime?            @db.Timestamp(6)
+  updated_at         DateTime?            @db.Timestamp(6)
+  serial_no          Int?
+  product_pricing    product_pricing[]
+  product_categories product_categories   @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  service_switchings service_switchings[]
+
+  @@unique([category_id, name], map: "unique_category_name")
+}
+
+model service_switchings {
+  id                   BigInt   @id @default(autoincrement())
+  api_id               BigInt
+  product_id           BigInt
+  api_code             String   @db.VarChar(50)
+  rate                 String   @db.VarChar(10)
+  commission_surcharge String   @db.VarChar(50)
+  flat_per             String   @db.VarChar(50)
+  gst                  Int
+  tds                  Int
+  txn_limit            Int
+  status               String   @default("Active") @db.VarChar(50)
+  created_at           DateTime @db.Timestamp(6)
+  updated_at           DateTime @db.Timestamp(6)
+  serial_no            Int?
+  msg_apis             msg_apis @relation(fields: [api_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_api")
+  products             products @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_product")
+}
+
 model temp_users {
   id                 Int                 @id @default(autoincrement())
   name               String              @db.VarChar(190)
@@ -47,161 +225,4 @@ model wallets {
   created_at        DateTime? @db.Timestamp(6)
   updated_at        DateTime? @db.Timestamp(6)
   users             users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
-}
-
-model login_history {
-  id               BigInt    @id @default(autoincrement())
-  device           String?   @db.VarChar(190)
-  operating_system String?   @db.VarChar(190)
-  browser          String?   @db.VarChar(190)
-  ip_address       String?   @db.VarChar(50)
-  latitude         Decimal?  @db.Decimal(10, 7)
-  longitude        Decimal?  @db.Decimal(10, 7)
-  location         String?
-  status           String?   @db.VarChar(20)
-  user_agent       String?
-  created_at       DateTime? @db.Timestamp(6)
-  updated_at       DateTime? @db.Timestamp(6)
-  user_id          Int?
-}
-
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model product_categories {
-  id         BigInt     @id @default(autoincrement())
-  name       String     @unique @db.VarChar(100)
-  slug       String     @unique @db.VarChar(100)
-  status     String?    @default("Active") @db.VarChar(8)
-  created_at DateTime?  @db.Timestamp(6)
-  updated_at DateTime?  @db.Timestamp(6)
-  products   products[]
-}
-
-model product_pricing {
-  id         BigInt    @id @default(autoincrement())
-  product_id BigInt
-  price      Decimal   @db.Decimal(10, 2)
-  currency   String?   @default("INR") @db.VarChar(10)
-  created_at DateTime? @db.Timestamp(6)
-  updated_at DateTime? @db.Timestamp(6)
-  products   products  @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model products {
-  id                 BigInt               @id @default(autoincrement())
-  category_id        BigInt
-  name               String               @db.VarChar(100)
-  slug               String               @unique @db.VarChar(100)
-  description        String?
-  icon               String?              @db.VarChar(255)
-  status             String?              @default("Active") @db.VarChar(8)
-  created_at         DateTime?            @db.Timestamp(6)
-  updated_at         DateTime?            @db.Timestamp(6)
-  product_pricing    product_pricing[]
-  product_categories product_categories   @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  service_switchings service_switchings[]
-
-  @@unique([category_id, name], map: "unique_category_name")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model audit_trail {
-  id          BigInt    @id @default(autoincrement())
-  table_name  String    @db.VarChar(255)
-  row_id      Int
-  action      String    @db.VarChar(20)
-  created_by  Int?
-  created_at  DateTime? @db.Timestamp(6)
-  updated_by  Int?
-  updated_at  DateTime? @db.Timestamp(6)
-  approved_by Int?
-  approved_at DateTime? @db.Timestamp(6)
-  verified_by BigInt?
-  verified_at DateTime? @db.Timestamp(6)
-  rejected_by Int?
-  rejected_at DateTime? @db.Timestamp(6)
-  deleted_by  Int?
-  deleted_at  DateTime? @db.Timestamp(6)
-  ip_address  String?   @db.VarChar(45)
-  latitude    Decimal?  @db.Decimal(10, 7)
-  longitude   Decimal?  @db.Decimal(10, 7)
-  remark      String?
-  status      String?   @db.VarChar(50)
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model msg_apis {
-  id                 BigInt               @id @default(autoincrement())
-  api_name           String               @db.VarChar(255)
-  api_type           String               @db.VarChar(10)
-  base_url           String
-  params             String?
-  method             String               @db.VarChar(6)
-  status             String               @db.VarChar(8)
-  created_at         DateTime             @db.Timestamp(6)
-  updated_at         DateTime             @db.Timestamp(6)
-  msg_logs           msg_logs[]
-  service_switchings service_switchings[]
-}
-
-model msg_contents {
-  id                   Int      @id @default(autoincrement())
-  message_type         String?  @db.VarChar(255)
-  send_sms             String?  @default("Yes") @db.VarChar(10)
-  send_whatsapp        String?  @default("Yes") @db.VarChar(10)
-  send_email           String?  @default("Yes") @db.VarChar(10)
-  send_notification    String?  @default("No") @db.VarChar(10)
-  sms_template_id      String?  @db.VarChar(255)
-  sms_content          String?
-  whatsapp_content     String?
-  mail_subject         String?  @db.VarChar(255)
-  mail_content         String?
-  notification_title   String?  @db.VarChar(255)
-  notification_content String?
-  keywords             String?
-  created_at           DateTime @db.Timestamp(6)
-  updated_at           DateTime @db.Timestamp(6)
-}
-
-model msg_logs {
-  id           BigInt   @id @default(autoincrement())
-  api_id       BigInt
-  numbers      String
-  message      String
-  base_url     String
-  params       String
-  api_response String
-  created_at   DateTime @db.Timestamp(6)
-  updated_at   DateTime @db.Timestamp(6)
-  msg_apis     msg_apis @relation(fields: [api_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_msg_logs_api")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model msg_signature {
-  id             BigInt   @id @default(autoincrement())
-  signature_type String   @db.VarChar(10)
-  signature      String
-  status         String   @db.VarChar(8)
-  created_at     DateTime @db.Timestamp(6)
-  updated_at     DateTime @db.Timestamp(6)
-}
-
-model service_switchings {
-  id                   BigInt   @id @default(autoincrement())
-  api_id               BigInt
-  product_id           BigInt
-  api_code             String   @db.VarChar(50)
-  rate                 String   @db.VarChar(10)
-  commission_surcharge String   @db.VarChar(50)
-  flat_per             String   @db.VarChar(50)
-  gst                  Int
-  tds                  Int
-  txn_limit            Int
-  status               String   @default("Active") @db.VarChar(50)
-  created_at           DateTime @db.Timestamp(6)
-  updated_at           DateTime @db.Timestamp(6)
-  apis                 msg_apis @relation(fields: [api_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_api")
-  products             products @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_product")
 }

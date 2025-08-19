@@ -21,6 +21,8 @@ app.use(cors());
 app.use(express.json());
 app.use(requestContext);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+
 // API Routes
 app.use('/api/v1', authRoutes,userRoutes);
 app.use('/api/v1/product-management', productManagementRoutes);

@@ -51,12 +51,23 @@ const getClientIp = (req) => {
   return ip;
 };
 
+// Response Codes
+const RESPONSE_CODES = {
+    SUCCESS: 1,
+    VALIDATION_ERROR: 2,
+    FAILED: 0,
+    DUPLICATE: 3,
+    NOT_FOUND: 4,
+    VERIFICATION_PENDING: 5
+};
+
 module.exports = {
   randomUUID,
   maskMobile,
   maskEmail,
   sendOtpRegistration,
   getClientIp,
-  useragent
+  useragent,
+  RESPONSE_CODES
 };
 

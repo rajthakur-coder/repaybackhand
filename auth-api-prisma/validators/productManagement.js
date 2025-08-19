@@ -1,6 +1,8 @@
 const { body, param } = require('express-validator');
 
+// =======================
 // Product Category Validators
+// =======================
 
 // Common rules
 const categoryNameRule = body('name')
@@ -12,25 +14,23 @@ const categoryStatusRule = body('status')
   .notEmpty().withMessage('Status is required')
   .isIn(['Active', 'Inactive']).withMessage('Status must be Active or Inactive');
 
-const categoryIdRule = body('id')
-  .notEmpty().withMessage('Category ID is required')
-  .isInt({ gt: 0 }).withMessage('Valid category ID is required');
+// Param ID rule
+const categoryIdParamRule = param('id')
+  .isInt({ gt: 0 }).withMessage('Valid Category ID is required');
 
 // Validators
-const productCategoryValidation = [categoryNameRule, categoryStatusRule];
-const updateProductCategoryValidation = [categoryIdRule, categoryNameRule, categoryStatusRule];
-const deleteCategoryValidation = [categoryIdRule];
-const changeCategoryStatusValidation = [categoryIdRule, categoryStatusRule];
+const addProductCategoryValidation = [categoryNameRule, categoryStatusRule];
+const updateProductCategoryValidation = [categoryIdParamRule, categoryNameRule, categoryStatusRule];
+const deleteCategoryValidation = [categoryIdParamRule];
+const changeCategoryStatusValidation = [categoryIdParamRule, categoryStatusRule];
 
+// =======================
 // Product Validators
+// =======================
 
 // Common rules
 const productIdParamRule = param('id')
   .isInt({ gt: 0 }).withMessage('Valid product ID is required');
-
-const productIdBodyRule = body('id')
-  .notEmpty().withMessage('Product ID is required')
-  .isInt({ gt: 0 }).withMessage('Valid product ID must be a positive integer');
 
 const productCategoryIdRule = body('category_id')
   .notEmpty().withMessage('Category ID is required')
@@ -59,7 +59,7 @@ const addProductValidation = [
 ];
 
 const updateProductValidation = [
-  productIdBodyRule,
+  productIdParamRule,
   productCategoryIdRule,
   productNameRule,
   productDescriptionRule,
@@ -67,7 +67,7 @@ const updateProductValidation = [
 ];
 
 const changeProductStatusValidation = [
-  productIdBodyRule,
+  productIdParamRule,
   productStatusRule,
 ];
 
@@ -75,7 +75,9 @@ const deleteProductValidation = [
   productIdParamRule,
 ];
 
-//Product Price Validators 
+// =======================
+// Product Price Validators
+// =======================
 
 const allowedCurrencies = ['USD', 'INR', 'EUR', 'GBP', 'AUD', 'CAD', 'JPY'];
 
@@ -83,9 +85,9 @@ const priceProductIdRule = body('product_id')
   .notEmpty().withMessage('Product ID is required')
   .isInt({ gt: 0 }).withMessage('Product ID must be a positive integer');
 
-  const priceIdBodyRule = body('id')
+const priceIdParamRule = param('id')
   .notEmpty().withMessage('Price ID is required')
-  .isInt({ gt: 0 }).withMessage('Valid Price ID must be a positive integer');
+  .isInt({ gt: 0 }).withMessage('Valid Price ID is required');
 
 const priceRule = body('price')
   .notEmpty().withMessage('Price is required')
@@ -102,10 +104,7 @@ const currencyRule = body('currency')
     return true;
   });
 
-const priceIdParamRule = param('id')
-  .notEmpty().withMessage('Price ID is required')
-  .isInt({ gt: 0 }).withMessage('Valid Price ID is required');
-
+// Validators
 const createProductPriceValidator = [
   priceProductIdRule,
   priceRule,
@@ -113,7 +112,7 @@ const createProductPriceValidator = [
 ];
 
 const updateProductPriceValidator = [
-  priceIdBodyRule,
+  priceIdParamRule,
   priceProductIdRule,
   priceRule,
   currencyRule,
@@ -126,10 +125,9 @@ const deleteProductPriceValidator = [
 
 // Export All Validators
 
-
 module.exports = {
   // Product Category
-  productCategoryValidation,
+  addProductCategoryValidation,
   updateProductCategoryValidation,
   deleteCategoryValidation,
   changeCategoryStatusValidation,

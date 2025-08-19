@@ -1,24 +1,21 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-
 const { validationResult } = require('express-validator');
 const slugify = require('slugify');
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 const { logAuditTrail } = require('../services/auditTrailService');
+const { RESPONSE_CODES } = require('../utils/helper');
+const { getNextSerial, reorderSerials } = require('../utils/serial');
+const { success, error } = require('../utils/response');
+
+
+
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-// Response Codes
-const RESPONSE_CODES = {
-    SUCCESS: 1,
-    VALIDATION_ERROR: 2,
-    FAILED: 0,
-    DUPLICATE: 3,
-    NOT_FOUND: 4
-};
 
 // Format date to IST string
 function formatISTDate(date) {
@@ -26,14 +23,19 @@ function formatISTDate(date) {
 }
 
 // Add new category
+function serializeBigInt(obj) {
+    return JSON.parse(
+        JSON.stringify(obj, (key, value) =>
+            typeof value === 'bigint' ? value.toString() : value
+        )
+    );
+}
+
 exports.addProductCategory = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res.status(422).json({
-            success: false,
-            statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-            message: errors.array()[0].msg
-        });
+        return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
 
     const { name, status } = req.body;
@@ -47,20 +49,29 @@ exports.addProductCategory = async (req, res) => {
         });
 
         if (existingCategory) {
-            return res.status(409).json({
-                success: false,
-                statusCode: RESPONSE_CODES.DUPLICATE,
-                message: 'Product Category already added'
-            });
+            return error(res, 'This Product Category already exists', RESPONSE_CODES.DUPLICATE, 409);
+
         }
 
+        // 🔥 Get max serial_no and add +1
+        const nextSerial = await getNextSerial(prisma, 'product_categories');
+
+
         const newCategory = await prisma.product_categories.create({
-            data: { name, slug, status, created_at: dateObj }
+            data: {
+                name,
+                slug,
+                status,
+                created_at: dateObj,
+                serial_no: nextSerial,
+                serial_no: nextSerial
+
+            }
         });
 
         await logAuditTrail({
             table_name: 'product_categories',
-            row_id: newCategory.id, // naya id use karna zaroori hai
+            row_id: newCategory.id,
             action: 'create',
             user_id: req.user?.id || null,
             ip_address: req.ip,
@@ -68,21 +79,18 @@ exports.addProductCategory = async (req, res) => {
             status
         });
 
-        res.status(200).json({
-            success: true,
-            statusCode: RESPONSE_CODES.SUCCESS,
-            message: 'Product Category Added Successfully'
+        // Send only ONE response with BigInt handled
+        return success(res, 'Product Category Added Successfully', {
+            data: serializeBigInt(newCategory)
         });
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({
-            success: false,
-            statusCode: RESPONSE_CODES.FAILED,
-            message: 'Product Category could not be added'
-        });
+    } catch (error) {
+        console.error(error);
+        return error(res, 'Failed to add Product Category');
+
     }
 };
+
 
 // Get list 
 exports.getProductCategoryList = async (req, res) => {
@@ -111,29 +119,30 @@ exports.getProductCategoryList = async (req, res) => {
             where,
             skip,
             take: limit,
-            orderBy: { id: 'asc' }
+            orderBy: { serial_no: 'asc' }
         });
+
 
         const formattedData = data.map(item => ({
             ...item,
             id: Number(item.id),
+            serial_no: item.serial_no,
             created_at: formatISTDate(item.created_at),
             updated_at: formatISTDate(item.updated_at)
         }));
 
-        res.json({
+
+        return success(res, 'Data fetched successfully', {
+
             recordsTotal: total,
             recordsFiltered: filteredCount,
             data: formattedData
         });
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({
-            success: false,
-            statusCode: RESPONSE_CODES.FAILED,
-            message: 'Server error'
-        });
+    } catch (error) {
+        console.error(error);
+        return error(res, 'Server error');
+
     }
 };
 
@@ -142,55 +151,46 @@ exports.getProductCategoryById = async (req, res) => {
     const id = parseInt(req.params.id);
 
     if (!id) {
-        return res.status(400).json({
-            statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-            message: 'Id is required'
-        });
+        return error(res, 'Product Category Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
 
     try {
         const category = await prisma.product_categories.findUnique({
             where: { id },
-            select: { id: true, name: true, status: true, created_at: true, updated_at: true }
+            select: { id: true, name: true, status: true, serial_no: true, created_at: true, updated_at: true }
+
         });
 
         if (!category) {
             return res.status(404).json({
                 statusCode: RESPONSE_CODES.NOT_FOUND,
-                message: 'Invalid id found'
+                message: 'Product Category not found'
             });
         }
 
-        res.json({
-            statusCode: RESPONSE_CODES.SUCCESS,
-            message: 'Data fetched successfully',
-            data: {
-                ...category,
-                id: Number(category.id),
-                created_at: formatISTDate(category.created_at),
-                updated_at: formatISTDate(category.updated_at)
-            }
+        return success(res, 'Data fetched successfully', {
+
+            ...category,
+            id: Number(category.id),
+            created_at: formatISTDate(category.created_at),
+            updated_at: formatISTDate(category.updated_at)
+
         });
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({
-            success: false,
-            statusCode: RESPONSE_CODES.FAILED,
-            message: 'Server error'
-        });
+    } catch (error) {
+        console.error(error);
+        return error(res, 'Server error');
     }
 };
+
 
 //  Update category
 exports.updateProductCategory = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res.status(422).json({
-            success: false,
-            statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-            message: errors.array()[0].msg,
-        });
+        return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
 
     const { id, name, status } = req.body;
@@ -201,11 +201,8 @@ exports.updateProductCategory = async (req, res) => {
         });
 
         if (!category) {
-            return res.status(404).json({
-                success: false,
-                statusCode: RESPONSE_CODES.NOT_FOUND,
-                message: 'Product Category Not Found',
-            });
+            return error(res, 'Product Category Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
         }
 
         const duplicateName = await prisma.product_categories.findFirst({
@@ -216,11 +213,8 @@ exports.updateProductCategory = async (req, res) => {
         });
 
         if (duplicateName) {
-            return res.status(409).json({
-                success: false,
-                statusCode: RESPONSE_CODES.DUPLICATE,
-                message: 'Another category with the same name exists',
-            });
+            return error(res, 'This Product Category already exists', RESPONSE_CODES.DUPLICATE, 409);
+
         }
 
         const slug = slugify(name, { lower: true });
@@ -231,11 +225,7 @@ exports.updateProductCategory = async (req, res) => {
             category.slug === slug &&
             category.status === status
         ) {
-            return res.status(200).json({
-                success: false,
-                statusCode: RESPONSE_CODES.DUPLICATE,
-                message: 'Product category already updated',
-            });
+            return error(res, 'No changes detected, message content is already up-to-date', RESPONSE_CODES.DUPLICATE, 409);
         }
 
         await prisma.product_categories.update({
@@ -253,18 +243,12 @@ exports.updateProductCategory = async (req, res) => {
             status,
         });
 
-        res.json({
-            success: true,
-            statusCode: RESPONSE_CODES.SUCCESS,
-            message: 'Product category updated successfully',
-        });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({
-            success: false,
-            statusCode: RESPONSE_CODES.FAILED,
-            message: 'Server error',
-        });
+        return success(res, 'Product Category updated successfully');
+
+    } catch (error) {
+        console.error(error);
+        return error(res, 'Server error');
+
     }
 };
 
@@ -273,14 +257,12 @@ exports.deleteProductCategory = async (req, res) => {
     const id = parseInt(req.params.id);
 
     if (!id) {
-        return res.status(422).json({
-            success: false,
-            statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-            message: 'Id is required'
-        });
+        return error(res, 'Product Category Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     }
 
     try {
+        //  Check if category has related products
         const relatedProducts = await prisma.products.count({
             where: { category_id: id }
         });
@@ -288,12 +270,16 @@ exports.deleteProductCategory = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 statusCode: RESPONSE_CODES.FAILED,
-                message: 'Cannot delete category with assigned products'
+                message: 'Cannot delete Product Category with assigned products'
             });
         }
 
         await prisma.product_categories.delete({ where: { id } });
 
+        // Reorder serial numbers (continuous numbering)
+        await reorderSerials(prisma, 'product_categories');
+
+        // Log audit trail
         await logAuditTrail({
             table_name: 'product_categories',
             row_id: id,
@@ -304,68 +290,55 @@ exports.deleteProductCategory = async (req, res) => {
             status: 'Deleted'
         });
 
-        res.json({
-            success: true,
-            statusCode: RESPONSE_CODES.SUCCESS,
-            message: 'Product category deleted successfully'
-        });
+        // Send response
+        return success(res, 'Product Category deleted successfully');
 
-    } catch (err) {
-        console.error(err);
-        res.status(404).json({
-            success: false,
-            statusCode: RESPONSE_CODES.NOT_FOUND,
-            message: 'Product Category Not found'
-        });
+
+    } catch (error) {
+        console.error(error);
+        return error(res, 'Product Category Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+
     }
 };
 
+//CHANGE STATUS
 exports.changeProductCategoryStatus = async (req, res) => {
-    const { id, status } = req.body;
+    const id = parseInt(req.params.id); // id from URL params
+    const { status } = req.body;
 
-    if (!id || isNaN(id) || parseInt(id) <= 0) {
-        return res.status(400).json({
-            success: false,
-            statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-            message: 'Invalid or missing product category ID'
-        });
+    // Validate ID
+    if (!id || isNaN(id) || id <= 0) {
+        return error(res, 'Invalid or missing product category ID', RESPONSE_CODES.VALIDATION_ERROR, 422);
     }
 
+    // Validate status
     const validStatuses = ['Active', 'Inactive'];
     if (!validStatuses.includes(status)) {
-        return res.status(400).json({
-            success: false,
-            statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-            message: 'Invalid status value'
-        });
+        return error(res, 'Invalid status value', RESPONSE_CODES.NOT_FOUND, 404);
     }
 
     try {
+        // Check if category exists
         const existingCategory = await prisma.product_categories.findUnique({
-            where: { id: parseInt(id) }
+            where: { id }
         });
 
         if (!existingCategory) {
-            return res.status(404).json({
-                success: false,
-                statusCode: RESPONSE_CODES.NOT_FOUND,
-                message: 'Product category not found'
-            });
+            return error(res, 'Product Category Not Found', RESPONSE_CODES.NOT_FOUND, 404);
         }
 
+        // Check if status is already the same
         if (existingCategory.status === status) {
-            return res.status(200).json({
-                success: true,
-                statusCode: RESPONSE_CODES.SUCCESS,
-                message: `Product category status is already '${status}'. No update needed.`
-            });
+            return error(res, 'Product category status is already the same. No update needed.', RESPONSE_CODES.DUPLICATE, 409);
         }
 
+        // Update status
         await prisma.product_categories.update({
-            where: { id: parseInt(id) },
+            where: { id },
             data: { status }
         });
 
+        // Log audit trail
         await logAuditTrail({
             table_name: 'product_categories',
             row_id: id,
@@ -376,19 +349,10 @@ exports.changeProductCategoryStatus = async (req, res) => {
             status
         });
 
-        res.json({
-            success: true,
-            statusCode: RESPONSE_CODES.SUCCESS,
-            message: 'Product category status updated successfully'
-        });
+        return success(res, 'Product Category status updated successfully');
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({
-            success: false,
-            statusCode: RESPONSE_CODES.FAILED,
-            message: 'Failed to update product category status'
-        });
+    } catch (error) {
+        console.error(error);
+        return error(res, 'Server error');
     }
 };
-

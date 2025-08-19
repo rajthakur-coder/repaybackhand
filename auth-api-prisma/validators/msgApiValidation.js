@@ -42,9 +42,6 @@ const paramsRule = body('params')
   .isLength({ max: 1000 }).withMessage('Params too long');
 
 
-
-//  Validation Sets 
-
 // Add new API
 const addApiValidation = [
   apiNameRule,
