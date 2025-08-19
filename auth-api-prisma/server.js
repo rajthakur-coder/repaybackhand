@@ -23,6 +23,7 @@ app.use(express.json());
 app.use(requestContext);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+app.use(express.urlencoded({ extended: true }));
 
 // API Routes
 app.use('/api/v1', authRoutes,userRoutes);

@@ -18,13 +18,6 @@ function formatISTDate(date) {
   return date ? dayjs(date).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null;
 }
 
-// function apiResponse({ success = true, statusCode = RESPONSE_CODES.SUCCESS, message = '', data = null }) {
-//   const response = { success, statusCode, message };
-//   if (data !== undefined && data !== null) {
-//     response.data = data; 
-//   }
-//   return response;
-// }
 
 //Add New API 
 exports.addMsgApi = async (req, res) => {
