@@ -123,21 +123,34 @@ exports.getProductCategoryList = async (req, res) => {
         });
 
 
-        const formattedData = data.map(item => ({
-            ...item,
+        // const formattedData = data.map(item => ({
+        //     ...item,
+        //     id: Number(item.id),
+        //     serial_no: item.serial_no,
+        //     created_at: formatISTDate(item.created_at),
+        //     updated_at: formatISTDate(item.updated_at)
+        // }));
+
+          const formattedData = data.map((item) => ({
             id: Number(item.id),
-            serial_no: item.serial_no,
+            name: item.name,
+            slug: item.slug,
+            status: item.status,
             created_at: formatISTDate(item.created_at),
-            updated_at: formatISTDate(item.updated_at)
+            updated_at: formatISTDate(item.updated_at),
+            serial_no: item.serial_no // agar null hai to auto-generate karo
         }));
 
 
-        return success(res, 'Data fetched successfully', {
+      return res.status(200).json({
+    success: true,
+    statusCode: 1,
+    message: 'Data fetched successfully',
+    recordsTotal: total,
+    recordsFiltered: filteredCount,
+    data: formattedData
+});
 
-            recordsTotal: total,
-            recordsFiltered: filteredCount,
-            data: formattedData
-        });
 
     } catch (error) {
         console.error(error);
