@@ -27,7 +27,7 @@ const sendOtpRegistration = async (receiver, type, user_id) => {
     data: {
       user_id: user_id,
       otp: parseInt(otp),
-      type: type, 
+      type: type,
       expires_at: new Date(Date.now() + 5 * 60 * 1000),
       is_verified: false,
       created_at: new Date(),
@@ -53,12 +53,12 @@ const getClientIp = (req) => {
 
 // Response Codes
 const RESPONSE_CODES = {
-    SUCCESS: 1,
-    VALIDATION_ERROR: 2,
-    FAILED: 0,
-    DUPLICATE: 3,
-    NOT_FOUND: 4,
-    VERIFICATION_PENDING: 5
+  SUCCESS: 1,
+  VALIDATION_ERROR: 2,
+  FAILED: 0,
+  DUPLICATE: 3,
+  NOT_FOUND: 4,
+  VERIFICATION_PENDING: 5
 };
 
 module.exports = {

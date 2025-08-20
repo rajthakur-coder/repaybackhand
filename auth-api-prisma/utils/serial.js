@@ -1,4 +1,3 @@
-// utils/serial.js
 async function getNextSerial(prisma, model) {
   const maxSerial = await prisma[model].aggregate({ _max: { serial_no: true } });
   return (maxSerial._max.serial_no || 0) + 1;

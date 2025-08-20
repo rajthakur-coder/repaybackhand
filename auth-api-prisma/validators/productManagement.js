@@ -1,10 +1,6 @@
 const { body, param } = require('express-validator');
 
-
-
-// =======================
 // Product Category Validators
-// =======================
 
 // Common rules
 const categoryNameRule = body('name')
@@ -26,9 +22,9 @@ const updateProductCategoryValidation = [categoryIdParamRule, categoryNameRule, 
 const deleteCategoryValidation = [categoryIdParamRule];
 const changeCategoryStatusValidation = [categoryIdParamRule, categoryStatusRule];
 
-// =======================
+
+
 // Product Validators
-// =======================
 
 // Common rules
 const productIdParamRule = param('id')
@@ -77,9 +73,8 @@ const deleteProductValidation = [
   productIdParamRule,
 ];
 
-// =======================
+
 // Product Price Validators
-// =======================
 
 const allowedCurrencies = ['USD', 'INR', 'EUR', 'GBP', 'AUD', 'CAD', 'JPY'];
 

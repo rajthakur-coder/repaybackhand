@@ -1,4 +1,3 @@
-// utils/response.js
 const { RESPONSE_CODES } = require('./helper');
 function success(res, message, data = null, statusCode = RESPONSE_CODES.SUCCESS) {
   return res.status(200).json({

@@ -29,7 +29,7 @@ const {
   deleteProductPriceValidator,
 } = require('../validators/productManagement');
 
-
+// router.use(authMiddleware);
 
 // Product Category Routes
 router.post('/category/add', addProductCategoryValidation, productCategoryController.addProductCategory);

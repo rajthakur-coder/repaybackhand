@@ -5,7 +5,6 @@ const serviceSwitchingController = require('../controllers/serviceSwitchingContr
 // const authMiddleware  = require('../middleware/auth');
 
 
-
 const {
     addServiceSwitchingValidation,
     updateServiceSwitchingValidation,
@@ -17,8 +16,8 @@ const {
 
 // Add Service Switching
 router.post('/service-switching/add', addServiceSwitchingValidation, serviceSwitchingController.addServiceSwitching);
-router.get('/service-switching/get-list', serviceSwitchingController.getServiceSwitchingList);
-router.patch('/service-switching/update', updateServiceSwitchingValidation, serviceSwitchingController.updateServiceSwitching);
+router.post('/service-switching/get-list', serviceSwitchingController.getServiceSwitchingList);
+router.patch('/service-switching/update/:id', updateServiceSwitchingValidation, serviceSwitchingController.updateServiceSwitching);
 router.get('/service-switching/byid/:id', serviceSwitchingController.getServiceSwitchingById);
 router.delete('/service-switching/delete/:id', deleteServiceSwitchingValidation, serviceSwitchingController.deleteServiceSwitching);
 

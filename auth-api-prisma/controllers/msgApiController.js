@@ -5,21 +5,19 @@ const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 const { logAuditTrail } = require('../services/auditTrailService');
-const {RESPONSE_CODES} = require('../utils/helper');
+const { RESPONSE_CODES } = require('../utils/helper');
 const { getNextSerial, reorderSerials } = require('../utils/serial');
 const { success, error } = require('../utils/response');
-
+const { safeParseInt, convertBigIntToString } = require('../utils/parser');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
-
 
 function formatISTDate(date) {
   return date ? dayjs(date).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null;
 }
 
-
-//Add New API 
+// Add New API
 exports.addMsgApi = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -32,7 +30,6 @@ exports.addMsgApi = async (req, res) => {
     const existingApi = await prisma.msg_apis.findFirst({
       where: { api_name: { equals: api_name, mode: 'insensitive' } }
     });
-
     if (existingApi) {
       return error(res, 'API with the same name already exists', RESPONSE_CODES.DUPLICATE, 409);
     }
@@ -40,18 +37,22 @@ exports.addMsgApi = async (req, res) => {
     const dateObj = dayjs().tz('Asia/Kolkata').toDate();
 
     const newApi = await prisma.$transaction(async (tx) => {
-      const nextSerial = await getNextSerial(prisma, 'msg_apis');
-
-
+      const nextSerial = await getNextSerial(tx, 'msg_apis');
       const api = await tx.msg_apis.create({
-        data: { 
-          api_name, api_type, base_url, params, method, status,
-          created_at: dateObj, updated_at: dateObj,
-          serial_no: nextSerial 
+        data: {
+          api_name,
+          api_type,
+          base_url,
+          params,
+          method,
+          status,
+          created_at: dateObj,
+          updated_at: dateObj,
+          serial_no: nextSerial
         }
       });
 
-      await logAuditTrail({
+      logAuditTrail({
         table_name: 'msg_apis',
         row_id: api.id,
         action: 'create',
@@ -59,22 +60,23 @@ exports.addMsgApi = async (req, res) => {
         ip_address: req.ip,
         remark: `Messaging API "${api_name}" created`,
         status
-      });
+      }).catch(err => console.error('Audit log failed:', err));
 
       return api;
     });
 
-return success(res, 'Message Content Added Successfully');
+    return success(res, 'Message API Added Successfully', newApi);
+
   } catch (err) {
     console.error(err);
-    return error(res, 'Failed to add Message Content', RESPONSE_CODES.FAILED, 500);
+    return error(res, 'Failed to add Message API', RESPONSE_CODES.FAILED, 500);
   }
 };
 
-//List APIs 
+// List APIs
 exports.getMsgApiList = async (req, res) => {
-  const offset = Math.max(0, parseInt(req.body.offset) || 0);
-  const limit = Math.max(1, parseInt(req.body.limit) || 10);
+  const offset = safeParseInt(req.body.offset, 0);
+  const limit = safeParseInt(req.body.limit, 10);
   const searchValue = req.body.searchValue || '';
   const apiType = req.body.api_type;
   const statusFilter = req.body.status;
@@ -88,40 +90,44 @@ exports.getMsgApiList = async (req, res) => {
       ].filter(Boolean)
     };
 
-    const total = await prisma.msg_apis.count();
-    const filteredCount = await prisma.msg_apis.count({ where });
+    const [total, filteredCount, data] = await Promise.all([
+      prisma.msg_apis.count(),
+      prisma.msg_apis.count({ where }),
+      prisma.msg_apis.findMany({
+        where,
+        skip: offset * limit,
+        take: limit,
+        orderBy: { serial_no: 'asc' }
+      })
+    ]);
 
-    const data = await prisma.msg_apis.findMany({
-      where,
-      skip: offset * limit,
-      take: limit,
-      orderBy: { serial_no: 'asc' }   // 👈 yaha se proper numbering dikhegi
-
-    });
-
-    const serializedData = data.map(item => ({
+    const serializedData = convertBigIntToString(data).map(item => ({
       ...item,
-      id: Number(item.id),
+       id: item.id.toString(), // consistent
       created_at: formatISTDate(item.created_at),
       updated_at: formatISTDate(item.updated_at)
     }));
 
-     return success(res, 'Data fetched successfully', {
+    return res.status(200).json({
+      success: true,
+      statusCode: 1,
+      message: 'Data fetched successfully',
       recordsTotal: total,
-      recordsFiltered: total,
+      recordsFiltered: filteredCount,
       data: serializedData
     });
+
   } catch (err) {
     console.error(err);
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };
 
-//Get API by ID
+// Get API by ID
 exports.getMsgApiById = async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return error(res, 'Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  const id = safeParseInt(req.params.id);
+  if (!id || id <= 0) {
+    return error(res, 'Message API Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
   try {
@@ -132,66 +138,68 @@ exports.getMsgApiById = async (req, res) => {
         method: true, status: true, created_at: true, updated_at: true
       }
     });
-
     if (!api) {
-      return error(res, 'Message Content Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+      return error(res, 'Message API Not Found', RESPONSE_CODES.NOT_FOUND, 404);
     }
 
+    const safeApi = convertBigIntToString(api);
+
     return success(res, 'Data fetched successfully', {
-      ...api,
-      id: Number(api.id),
+      ...safeApi,
       created_at: formatISTDate(api.created_at),
       updated_at: formatISTDate(api.updated_at)
     });
+
   } catch (err) {
     console.error(err);
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };
 
-//Update API
+// Update API
 exports.updateMsgApi = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-       return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
-
+    return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
-  const { id, api_name, api_type, base_url, params, method, status } = req.body;
-
-  if (!Number.isInteger(Number(id)) || Number(id) <= 0) {
-    return error(res, 'Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  const id = safeParseInt(req.params.id);
+  if (!id || id <= 0) {
+    return error(res, 'Invalid or missing ID', RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
+
+  const { api_name, api_type, base_url, params, method, status } = req.body;
 
   try {
     const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
 
     await prisma.$transaction(async (tx) => {
-      const api = await tx.msg_apis.findUnique({ where: { id: Number(id) } });
+      const api = await tx.msg_apis.findUnique({ where: { id } });
       if (!api) throw new Error('API_NOT_FOUND');
 
       const duplicate = await tx.msg_apis.findFirst({
-        where: { api_name: { equals: api_name, mode: 'insensitive' }, id: { not: Number(id) } }
+        where: { api_name: { equals: api_name, mode: 'insensitive' }, id: { not: id } }
       });
       if (duplicate) throw new Error('DUPLICATE_NAME');
 
       await tx.msg_apis.update({
-        where: { id: Number(id) },
+        where: { id },
         data: { api_name, api_type, base_url, params, method, status, updated_at: updatedAt }
       });
 
-      await logAuditTrail({
+      logAuditTrail({
         table_name: 'msg_apis',
-        row_id: Number(id),
+        row_id: id,
         action: 'update',
         user_id: req.user?.id || null,
         ip_address: req.ip,
         remark: `Messaging API "${api_name}" updated`,
         status
-      });
+      }).catch(err => console.error('Audit log failed:', err));
     });
 
-    return success(res, 'Message API  updated successfully');
+    return success(res, 'Message API updated successfully');
+
   } catch (err) {
     console.error(err);
     if (err.message === 'API_NOT_FOUND') {
@@ -204,37 +212,36 @@ exports.updateMsgApi = async (req, res) => {
   }
 };
 
-//Delete API
+// Delete API
 exports.deleteMsgApi = async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
-       return error(res, 'Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
-
+  const id = safeParseInt(req.params.id);
+  if (!id || id <= 0) {
+    return error(res, 'Message Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
   try {
     const api = await prisma.msg_apis.findUnique({ where: { id } });
     if (!api) {
-          return error(res, 'Message Content Not Found', RESPONSE_CODES.NOT_FOUND, 404);
-
+      return error(res, 'Message API Not Found', RESPONSE_CODES.NOT_FOUND, 404);
     }
 
-    await prisma.msg_apis.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.msg_apis.delete({ where: { id } });
+      await reorderSerials(tx, 'msg_apis');
 
-    // 🔥 Reorder serial numbers after delete
-   await reorderSerials(prisma, 'msg_apis');
-
-    await logAuditTrail({
-      table_name: 'msg_apis',
-      row_id: id,
-      action: 'delete',
-      user_id: req.user?.id,
-      ip_address: req.ip,
-      remark: `Messaging API deleted`,
-      status: 'Deleted'
+      logAuditTrail({
+        table_name: 'msg_apis',
+        row_id: id,
+        action: 'delete',
+        user_id: req.user?.id,
+        ip_address: req.ip,
+        remark: `Messaging API deleted`,
+        status: 'Deleted'
+      }).catch(err => console.error('Audit log failed:', err));
     });
 
     return success(res, 'Message API deleted successfully');
+
   } catch (err) {
     console.error(err);
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
