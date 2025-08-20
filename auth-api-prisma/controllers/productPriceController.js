@@ -5,6 +5,8 @@ const { logAuditTrail } = require('../services/auditTrailService');
 const { RESPONSE_CODES } = require('../utils/helper');
 const { success, error } = require('../utils/response');
 const { safeParseInt, convertBigIntToString } = require('../utils/parser');
+const { getNextSerial, reorderSerials } = require('../utils/serial');
+
 
 module.exports = {
   // ADD product price
@@ -38,12 +40,15 @@ module.exports = {
         return error(res, 'This product already has a price entry.', RESPONSE_CODES.DUPLICATE, 409);
       }
 
+       const nextSerial = await getNextSerial(prisma, 'product_pricing');
+
       const Product_price = await prisma.product_pricing.create({
         data: {
           product_id,
           price,
           currency,
           created_at: new Date(),
+          serial_no: nextSerial
         },
       });
 
@@ -95,7 +100,7 @@ module.exports = {
           where,
           skip: offset * limit,
           take: limit,
-          orderBy: { id: 'asc' },
+        orderBy: { serial_no: 'asc' },
           include: {
             products: {
               select: { name: true },
@@ -275,7 +280,11 @@ module.exports = {
         }
 
         await tx.product_pricing.delete({ where: { id } });
+              await reorderSerials(tx, 'product_pricing');
+
       });
+
+
 
       logAuditTrail({
         table_name: 'product_pricing',
