@@ -71,7 +71,7 @@ const addMsgContentValidation = [
 
 // Update message content
 const updateMsgContentValidation = [
-  idBodyRule,
+  idParamRule,
   ...addMsgContentValidation
 ];
 

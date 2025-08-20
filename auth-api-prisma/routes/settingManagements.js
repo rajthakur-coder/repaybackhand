@@ -17,7 +17,7 @@ const {
 // Add Service Switching
 router.post('/service-switching/add', addServiceSwitchingValidation, serviceSwitchingController.addServiceSwitching);
 router.post('/service-switching/get-list', serviceSwitchingController.getServiceSwitchingList);
-router.patch('/service-switching/update/:id', updateServiceSwitchingValidation, serviceSwitchingController.updateServiceSwitching);
+router.put('/service-switching/update/:id', updateServiceSwitchingValidation, serviceSwitchingController.updateServiceSwitching);
 router.get('/service-switching/byid/:id', serviceSwitchingController.getServiceSwitchingById);
 router.delete('/service-switching/delete/:id', deleteServiceSwitchingValidation, serviceSwitchingController.deleteServiceSwitching);
 

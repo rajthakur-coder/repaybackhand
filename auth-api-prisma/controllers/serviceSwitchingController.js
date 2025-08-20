@@ -13,11 +13,11 @@ const { safeParseInt, convertBigIntToString } = require('../utils/parser');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const VALID_STATUS = ['ACTIVE', 'INACTIVE'];
+const VALID_STATUS = ['Active', 'Inactive'];
 
-function formatISTDate(date) {
-  return date ? dayjs(date).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null;
-}
+// function formatISTDate(date) {
+//   return date ? dayjs(date).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null;
+// }
 
 // Add Service Switching
 exports.addServiceSwitching = async (req, res) => {
@@ -142,18 +142,23 @@ exports.getServiceSwitchingById = async (req, res) => {
   try {
     const data = await prisma.service_switchings.findUnique({
       where: { id },
-      include: { msg_apis: { select: { api_name: true } }, products: { select: { name: true } } }
+      include: {
+        msg_apis: { select: { api_name: true } },
+        products: { select: { name: true } }
+      }
     });
 
     if (!data) return error(res, 'Service Switching not found', RESPONSE_CODES.NOT_FOUND, 404);
 
-    const formattedData = {
-      ...convertBigIntToString(data),
-      created_at: formatISTDate(data.created_at),
-      updated_at: formatISTDate(data.updated_at),
-      api_name: data.msg_apis?.api_name || null,
-      product_name: data.products?.name || null
-    };
+    const formattedData = convertBigIntToString(data);
+
+    // Flatten nested objects
+    formattedData.api_name = data.msg_apis?.api_name || null;
+    formattedData.product_name = data.products?.name || null;
+
+    // Remove original nested objects
+    delete formattedData.msg_apis;
+    delete formattedData.products;
 
     return success(res, 'Data fetched successfully', formattedData);
 
@@ -162,6 +167,7 @@ exports.getServiceSwitchingById = async (req, res) => {
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };
+
 
 // Update Service Switching
 exports.updateServiceSwitching = async (req, res) => {

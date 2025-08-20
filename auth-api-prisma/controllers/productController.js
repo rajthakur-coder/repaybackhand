@@ -34,8 +34,8 @@ exports.addProduct = async (req, res) => {
     const description = req.body.description || '';
     const status = req.body.status || 'Inactive';
 
-    if (!category_id) return error(res, 'Product category Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
-    if (!name) return error(res, 'Product Name is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+    // if (!category_id) return error(res, 'Product category Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+    // if (!name) return error(res, 'Product Name is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
     const category = await prisma.product_categories.findUnique({ where: { id: category_id } });
     if (!category) return error(res, 'Category not found', RESPONSE_CODES.NOT_FOUND, 404);
@@ -86,7 +86,6 @@ exports.addProduct = async (req, res) => {
 // GET PRODUCT LIST 
 exports.getProductList = async (req, res) => {
   try {
-    // 1️⃣ Validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return error(
@@ -97,7 +96,6 @@ exports.getProductList = async (req, res) => {
       );
     }
 
-    // 2️⃣ Pagination & search params
     const offset = safeParseInt(req.body.offset, 0);
     const limit = safeParseInt(req.body.limit, 10);
     const searchValue = (req.body.searchValue || '').trim();
@@ -106,7 +104,6 @@ exports.getProductList = async (req, res) => {
 
     const validStatuses = ['active', 'inactive'];
 
-    // 3️⃣ Build Prisma WHERE filter
     const where = {
       AND: [
         searchValue
@@ -118,12 +115,7 @@ exports.getProductList = async (req, res) => {
       ].filter(Boolean)
     };
 
-    // 4️⃣ Debug logs (optional, remove in production)
-    console.log('Search Value:', searchValue);
-    console.log('Status Filter:', statusFilter);
-    console.log('Prisma WHERE:', JSON.stringify(where, null, 2));
 
-    // 5️⃣ Fetch data concurrently
     const [total, filteredCount, data] = await Promise.all([
       prisma.products.count(),
       prisma.products.count({ where }),
@@ -136,7 +128,7 @@ exports.getProductList = async (req, res) => {
       })
     ]);
 
-    // 6️⃣ Format response
+
     const formattedData = convertBigIntToString(data).map((p) => ({
       id: String(p.id),
       serial_no: safeParseInt(p.serial_no),
@@ -153,7 +145,7 @@ exports.getProductList = async (req, res) => {
       updated_at: ISTFormat(p.updated_at)
     }));
 
-    // 7️⃣ Send response
+
     return res.status(200).json({
       success: true,
       statusCode: 1,
@@ -176,7 +168,6 @@ exports.getProductById = async (req, res) => {
       return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
 
     const id = safeParseInt(req.params.id);
-    if (!id) return error(res, 'Product ID Not Found', RESPONSE_CODES.NOT_FOUND, 404);
 
     const product = await prisma.products.findUnique({
       where: { id },
@@ -217,15 +208,15 @@ exports.updateProduct = async (req, res) => {
   if (!errors.isEmpty()) return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
 
   const id = safeParseInt(req.params.id);
-  if (!id) return error(res, 'Product ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  // if (!id) return error(res, 'Product ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
   try {
     const { category_id: rawCategoryId, name: rawName, description = '', status = 'Inactive' } = req.body;
     const category_id = safeParseInt(rawCategoryId);
     const name = (rawName || '').trim();
 
-    if (!category_id) return error(res, 'Category ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
-    if (!name) return error(res, 'Product name is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+    // if (!category_id) return error(res, 'Category ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+    // if (!name) return error(res, 'Product name is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
     const existing = await prisma.products.findUnique({ where: { id } });
     if (!existing) return error(res, 'Product not found', RESPONSE_CODES.NOT_FOUND, 404);
@@ -280,7 +271,6 @@ exports.deleteProduct = async (req, res) => {
   if (!errors.isEmpty()) return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
 
   const id = safeParseInt(req.params.id);
-  if (!id) return error(res, 'Product Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
   try {
     const product = await prisma.products.findUnique({ where: { id } });
@@ -318,10 +308,10 @@ exports.changeProductStatus = async (req, res) => {
 
   const id = safeParseInt(req.params.id);
   const { status } = req.body;
-  if (!id) return error(res, 'Product Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  // if (!id) return error(res, 'Product Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
   const validStatuses = ['Active', 'Inactive'];
-  if (!validStatuses.includes(status)) return error(res, 'Invalid status value', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  // if (!validStatuses.includes(status)) return error(res, 'Invalid status value', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
   try {
     const product = await prisma.products.findUnique({ where: { id } });

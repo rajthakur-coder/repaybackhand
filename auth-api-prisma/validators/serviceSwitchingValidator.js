@@ -77,7 +77,7 @@ const addServiceSwitchingValidation = [
 
 // Update Service Switching
 const updateServiceSwitchingValidation = [
-  idBodyRule,
+  idParamRule,
   apiIdRule,
   productIdRule,
   apiCodeRule,

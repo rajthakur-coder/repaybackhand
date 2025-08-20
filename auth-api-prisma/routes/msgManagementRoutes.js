@@ -12,9 +12,7 @@ const { addApiValidation,
 } = require('../validators/msgApiValidation');
 
 const {
-  addSignatureValidation,
-  updateSignatureValidation,
-  deleteSignatureValidation
+addOrUpdateSignatureValidator
 } = require('../validators/msgSignatureValidator');
 
 
@@ -39,23 +37,18 @@ const {
 router.post('/msg-apis/add', addApiValidation, controller.addMsgApi);
 router.post('/msg-apis/get-list', controller.getMsgApiList);
 router.get('/msg-apis/byid/:id', getApiByIdValidation,controller.getMsgApiById);
-router.patch('/msg-apis/update/:id', updateApiValidation, controller.updateMsgApi);
+router.put('/msg-apis/update/:id', updateApiValidation, controller.updateMsgApi);
 router.delete('/msg-apis/delete/:id', deleteApiValidation, controller.deleteMsgApi);
 
 
 // Add new signature
-router.post('/msg-signatures/add', addSignatureValidation, signatureController.addSignature);
-router.post('/msg-signatures/get-list', signatureController.getSignatureList);
-router.get('/msg-signatures/byid/:id', signatureController.getSignatureById);
-router.patch('/msg-signatures/updated/:id', updateSignatureValidation, signatureController.updateSignature);
-router.delete('/msg-signatures/delete/:id', deleteSignatureValidation, signatureController.deleteSignature);
-
+router.post('/signature', addOrUpdateSignatureValidator, signatureController.addOrUpdateSignature);
 
 // Add new message content
 router.post('/msg-contents/add', addMsgContentValidation, addMsgContent);
 router.post('/msg-contents/get-list', getMsgContentList);
 router.get('/msg-contents/byid/:id', deleteMsgContentValidation, getMsgContentById);
-router.patch('/msg-contents/updated/:id', updateMsgContentValidation, updateMsgContent);
+router.put('/msg-contents/updated/:id', updateMsgContentValidation, updateMsgContent);
 router.delete('/msg-contents/delete/:id', deleteMsgContentValidation, deleteMsgContent);
 
 

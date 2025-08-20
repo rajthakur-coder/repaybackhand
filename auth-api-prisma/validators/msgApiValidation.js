@@ -54,7 +54,7 @@ const addApiValidation = [
 
 // Update API
 const updateApiValidation = [
-  idBodyRule,
+  idParamRule,
   apiNameRule,
   apiTypeRule,
   baseUrlRule,

@@ -173,7 +173,7 @@ exports.updateMsgContent = async (req, res) => {
       data: {
         message_type,
         ...sendFlags,
-        sms_template_id: safeParseInt(req.body.sms_template_id),
+        sms_template_id: convertBigIntToString(req.body.sms_template_id),
         sms_content,
         whatsapp_content,
         mail_subject: req.body.mail_subject,

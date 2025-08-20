@@ -1,72 +1,38 @@
-const { body, param } = require('express-validator');
+const { body } = require('express-validator');
 
-// Common rules
+const allowedSignatureTypes = ['sms', 'whatsapp']; // compare lowercase
+const allowedStatuses = ['active', 'inactive'];
 
-// ID in URL param
-const idParamRule = param('id')
-  .isInt({ gt: 0 }).withMessage('Valid signature ID is required');
+const addOrUpdateSignatureValidator = [
+  body('signature')
+    .notEmpty().withMessage('Signature is required')
+    .isString().withMessage('Signature must be a string'),
 
-// ID in request body
-const idBodyRule = body('id')
-  .notEmpty().withMessage('Signature ID is required')
-  .isInt({ gt: 0 }).withMessage('Valid signature ID must be a positive integer');
+  body('signature_type')
+    .notEmpty().withMessage('Signature type is required')
+    .isString().withMessage('Signature type must be a string')
+    .custom(value => {
+      if (!allowedSignatureTypes.includes(value.toLowerCase())) {
+        throw new Error(`Invalid signature_type. Allowed types: SMS, Whatsapp`);
+      }
+      return true;
+    })
+    .customSanitizer(value => {
+      const lower = value.toLowerCase();
+      if (lower === 'sms') return 'SMS';
+      if (lower === 'whatsapp') return 'Whatsapp';
+      return value;
+    }),
 
-// Signature type rule
-const signatureTypeRule = body('signature_type')
-  .trim()
-  .notEmpty().withMessage('Signature type is required')
-  .custom(value => {
-    const allowed = ['sms', 'whatsapp'];
-    if (!allowed.includes(value.toLowerCase())) {
-      throw new Error('Signature type must be either SMS or Whatsapp');
-    }
-    return true;
-  });
-
-// Signature text rule
-const signatureRule = body('signature')
-  .trim()
-  .escape() // sanitize input to prevent XSS
-  .notEmpty().withMessage('Signature text is required')
-  .isLength({ max: 255 }).withMessage('Signature text must be at most 255 characters');
-
-// Status rule
-const statusRule = body('status')
-  .trim()
-  .notEmpty().withMessage('Status is required')
-  .custom(value => {
-    const allowed = ['active', 'inactive'];
-    if (!allowed.includes(value.toLowerCase())) {
-      throw new Error('Status must be active or inactive');
-    }
-    return true;
-  });
-
-//Validation sets
-
-// Add new signature
-const addSignatureValidation = [
-  signatureTypeRule,
-  signatureRule,
-  statusRule
+  body('status')
+    .notEmpty().withMessage('Status is required')
+    .custom(value => {
+      if (!allowedStatuses.includes(value.toLowerCase())) {
+        throw new Error(`Invalid status. Allowed: ${allowedStatuses.join(', ')}`);
+      }
+      return true;
+    })
+    .customSanitizer(value => value.toLowerCase())
 ];
 
-// Update signature
-const updateSignatureValidation = [
-  idBodyRule,
-  signatureTypeRule,
-  signatureRule,
-  statusRule
-];
-
-
-// Delete signature
-const deleteSignatureValidation = [
-  idParamRule
-];
-
-module.exports = {
-  addSignatureValidation,
-  updateSignatureValidation,
-  deleteSignatureValidation
-};
+module.exports = { addOrUpdateSignatureValidator };

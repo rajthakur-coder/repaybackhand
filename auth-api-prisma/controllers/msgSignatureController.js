@@ -5,286 +5,91 @@ const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 const { logAuditTrail } = require('../services/auditTrailService');
-const {RESPONSE_CODES} = require('../utils/helper');
-
+const { RESPONSE_CODES } = require('../utils/helper');
+const { success, error } = require('../utils/response');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-// const RESPONSE_CODES = {
-//   SUCCESS: 1,
-//   VALIDATION_ERROR: 2,
-//   FAILED: 0,
-//   DUPLICATE: 3,
-//   NOT_FOUND: 4
-// };
-
-function formatISTDate(date) {
-  return date ? dayjs(date).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null;
+function getISTDate() {
+  return dayjs().tz('Asia/Kolkata').toDate();
 }
 
-// Add Signature
-exports.addSignature = async (req, res) => {
+async function logSignatureAudit({ id, action, user_id, ip_address, signature_type, status }) {
+  await logAuditTrail({
+    table_name: 'msg_signature',
+    row_id: id,
+    action,
+    user_id,
+    ip_address,
+    remark: `Signature ${action}d for ${signature_type}`,
+    status
+  });
+}
+
+exports.addOrUpdateSignature = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg
-    });
+    return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
   const { signature, signature_type, status } = req.body;
+  const user_id = req.user?.id || null;
+  const ip_address = req.ip;
 
   try {
-    const existing = await prisma.msg_signature.findFirst({
-      where: {
-        signature: { equals: signature, mode: 'insensitive' },
-        signature_type
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.msg_signature.findFirst({ where: { signature_type } });
+      const now = getISTDate();
+
+      if (existing) {
+        if (existing.signature === signature && existing.status.toLowerCase() === status) {
+          return { message: 'Already up-to-date', alreadyUpdated: true };
+        }
+
+        // Update
+        await tx.msg_signature.update({
+          where: { id: existing.id },
+          data: { signature, status, updated_at: now }
+        });
+
+        await logSignatureAudit({
+          id: existing.id,
+          action: 'update',
+          user_id,
+          ip_address,
+          signature_type,
+          status
+        });
+
+        return { message: 'Signature updated successfully', alreadyUpdated: false };
+      } else {
+        // Create
+        const newSig = await tx.msg_signature.create({
+          data: { signature, signature_type, status, created_at: now, updated_at: now }
+        });
+
+        await logSignatureAudit({
+          id: newSig.id,
+          action: 'create',
+          user_id,
+          ip_address,
+          signature_type,
+          status
+        });
+
+        return { message: 'Signature added successfully', alreadyUpdated: false };
       }
     });
 
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        statusCode: RESPONSE_CODES.DUPLICATE,
-        message: 'Signature already exists for this type'
-      });
-    }
-
-    const dateObj = dayjs().tz('Asia/Kolkata').toDate();
-
-    const newSig = await prisma.msg_signature.create({
-      data: { signature, signature_type, status, created_at: dateObj, updated_at: dateObj }
-    });
-
-    await logAuditTrail({
-      table_name: 'msg_signature',
-      row_id: newSig.id,
-      action: 'create',
-      user_id: req.user?.id || null,
-      ip_address: req.ip,
-      remark: `Signature created for ${signature_type}`,
-      status
-    });
-
-    res.json({
+    return res.json({
       success: true,
       statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Signature Added Successfully'
+      message: result.message
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({
-      success: false,
-      statusCode: RESPONSE_CODES.FAILED,
-      message: 'Failed to add Signature'
-    });
-  }
-};
+    return error(res, 'Server error');
 
-// List Signatures
-exports.getSignatureList = async (req, res) => {
-  const offset = parseInt(req.body.offset) || 0;
-  const limit = parseInt(req.body.limit) || 10;
-  const searchValue = req.body.searchValue || '';
-  const sigType = req.body.signature_type;
-  const statusFilter = req.body.status;
-
-  try {
-    const where = {
-      AND: [
-        searchValue
-          ? { signature: { contains: searchValue, mode: 'insensitive' } }
-          : null,
-        sigType && sigType !== 'All'
-          ? { signature_type: sigType }
-          : null,
-        statusFilter && statusFilter !== 'All'
-          ? { status: statusFilter }
-          : null
-      ].filter(Boolean)
-    };
-
-    const total = await prisma.msg_signature.count();
-    const filteredCount = await prisma.msg_signature.count({ where });
-
-    const data = await prisma.msg_signature.findMany({
-      where,
-      skip: offset * limit,
-      take: limit,
-      orderBy: { id: 'desc' }
-    });
-
-    const serializedData = data.map(item => ({
-      ...item,
-      id: Number(item.id),
-      created_at: item.created_at ? item.created_at.toISOString() : null,
-      updated_at: item.updated_at ? item.updated_at.toISOString() : null
-    }));
-
-    res.json({
-      recordsTotal: total,
-      recordsFiltered: filteredCount,
-      data: serializedData
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-// Get Signature by ID
-exports.getSignatureById = async (req, res) => {
-  const id = parseInt(req.params.id);
-  if (!id) {
-    return res.status(400).json({
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: 'Id is required'
-    });
-  }
-
-  try {
-    const sig = await prisma.msg_signature.findUnique({
-      where: { id },
-      select: {
-        id: true, signature: true, signature_type: true, status: true, created_at: true, updated_at: true
-      }
-    });
-
-    if (!sig) {
-      return res.status(404).json({
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Invalid id found'
-      });
-    }
-
-    res.json({
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Data fetched successfully',
-      data: {
-        ...sig,
-        id: Number(sig.id),
-        created_at: formatISTDate(sig.created_at),
-        updated_at: formatISTDate(sig.updated_at)
-      }
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      statusCode: RESPONSE_CODES.FAILED,
-      message: 'Server error'
-    });
-  }
-};
-
-// Update Signature
-exports.updateSignature = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: errors.array()[0].msg
-    });
-  }
-
-  const { id, signature, signature_type, status } = req.body;
-
-  try {
-    const sig = await prisma.msg_signature.findUnique({ where: { id: Number(id) } });
-    if (!sig) {
-      return res.status(404).json({
-        success: false,
-        statusCode: RESPONSE_CODES.NOT_FOUND,
-        message: 'Signature Not Found'
-      });
-    }
-
-    const duplicate = await prisma.msg_signature.findFirst({
-      where: {
-        signature: { equals: signature, mode: 'insensitive' },
-        signature_type,
-        id: { not: Number(id) }
-      }
-    });
-
-    if (duplicate) {
-      return res.status(409).json({
-        success: false,
-        statusCode: RESPONSE_CODES.DUPLICATE,
-        message: 'Another Signature with the same text exists for this type'
-      });
-    }
-
-    const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
-
-    await prisma.msg_signature.update({
-      where: { id: Number(id) },
-      data: { signature, signature_type, status, updated_at: updatedAt }
-    });
-
-    await logAuditTrail({
-      table_name: 'msg_signature',
-      row_id: Number(id),
-      action: 'update',
-      user_id: req.user?.id || null,
-      ip_address: req.ip,
-      remark: `Signature updated for ${signature_type}`,
-      status
-    });
-
-    res.json({
-      success: true,
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Signature updated successfully'
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      statusCode: RESPONSE_CODES.FAILED,
-      message: 'Server error'
-    });
-  }
-};
-
-// Delete Signature
-exports.deleteSignature = async (req, res) => {
-  const id = parseInt(req.params.id);
-  if (!id) {
-    return res.status(422).json({
-      success: false,
-      statusCode: RESPONSE_CODES.VALIDATION_ERROR,
-      message: 'Id is required'
-    });
-  }
-
-  try {
-    await prisma.msg_signature.delete({ where: { id } });
-
-    await logAuditTrail({
-      table_name: 'msg_signature',
-      row_id: id,
-      action: 'delete',
-      user_id: req.user?.id,
-      ip_address: req.ip,
-      remark: `Signature deleted`,
-      status: 'Deleted'
-    });
-
-    res.json({
-      success: true,
-      statusCode: RESPONSE_CODES.SUCCESS,
-      message: 'Signature deleted successfully'
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(404).json({
-      success: false,
-      statusCode: RESPONSE_CODES.NOT_FOUND,
-      message: 'Signature Not found'
-    });
   }
 };

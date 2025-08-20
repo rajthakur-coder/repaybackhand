@@ -74,7 +74,7 @@ exports.getProductCategoryList = async (req, res) => {
     const limit = safeParseInt(req.body.limit, 10);
     const searchValue = (req.body.searchValue || '').trim();
     const validStatuses = ['active', 'inactive'];
-    const statusFilter = (req.body.ProductCategoryStatus || '').toLowerCase(); // ✅ define here
+    const statusFilter = (req.body.ProductCategoryStatus || '').toLowerCase(); 
 
     const where = {
       AND: [
@@ -197,7 +197,6 @@ exports.updateProductCategory = async (req, res) => {
 // Delete category
 exports.deleteProductCategory = async (req, res) => {
     const id = safeParseInt(req.params.id);
-    if (!id) return error(res, 'Product Category Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
     try {
         const relatedProducts = await prisma.products.count({ where: { category_id: id } });
