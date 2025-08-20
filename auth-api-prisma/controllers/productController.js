@@ -86,25 +86,44 @@ exports.addProduct = async (req, res) => {
 // GET PRODUCT LIST 
 exports.getProductList = async (req, res) => {
   try {
+    // 1️⃣ Validation
     const errors = validationResult(req);
-    if (!errors.isEmpty())
-      return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+    if (!errors.isEmpty()) {
+      return error(
+        res,
+        errors.array()[0].msg,
+        RESPONSE_CODES.VALIDATION_ERROR,
+        422
+      );
+    }
 
+    // 2️⃣ Pagination & search params
     const offset = safeParseInt(req.body.offset, 0);
     const limit = safeParseInt(req.body.limit, 10);
     const searchValue = (req.body.searchValue || '').trim();
-    const validStatuses = ['Active', 'Inactive'];
-    const statusFilter = validStatuses.includes(req.body.ProductCategoryStatus)
-      ? req.body.ProductCategoryStatus
-      : null;
+    const statusRaw = req.body.ProductStatus || '';
+    const statusFilter = statusRaw.toLowerCase();
 
+    const validStatuses = ['active', 'inactive'];
+
+    // 3️⃣ Build Prisma WHERE filter
     const where = {
       AND: [
-        searchValue ? { name: { contains: searchValue, mode: 'insensitive' } } : null,
-        statusFilter ? { status: statusFilter } : null
+        searchValue
+          ? { name: { contains: searchValue, mode: 'insensitive' } }
+          : null,
+        validStatuses.includes(statusFilter)
+          ? { status: { equals: statusFilter, mode: 'insensitive' } }
+          : null
       ].filter(Boolean)
     };
 
+    // 4️⃣ Debug logs (optional, remove in production)
+    console.log('Search Value:', searchValue);
+    console.log('Status Filter:', statusFilter);
+    console.log('Prisma WHERE:', JSON.stringify(where, null, 2));
+
+    // 5️⃣ Fetch data concurrently
     const [total, filteredCount, data] = await Promise.all([
       prisma.products.count(),
       prisma.products.count({ where }),
@@ -117,11 +136,14 @@ exports.getProductList = async (req, res) => {
       })
     ]);
 
-    const formattedData = convertBigIntToString(data).map(p => ({
+    // 6️⃣ Format response
+    const formattedData = convertBigIntToString(data).map((p) => ({
       id: String(p.id),
       serial_no: safeParseInt(p.serial_no),
-      category_id: String(p.category_id),
-      category_name: p.product_categories ? p.product_categories.name : null,
+      category_id: p.category_id ? String(p.category_id) : null,
+      category_name: p.product_categories
+        ? p.product_categories.name
+        : null,
       name: p.name,
       slug: p.slug,
       description: p.description || null,
@@ -131,15 +153,15 @@ exports.getProductList = async (req, res) => {
       updated_at: ISTFormat(p.updated_at)
     }));
 
+    // 7️⃣ Send response
     return res.status(200).json({
       success: true,
       statusCode: 1,
       message: 'Data fetched successfully',
       recordsTotal: total,
       recordsFiltered: filteredCount,
-      data: formattedData,
+      data: formattedData
     });
-
   } catch (err) {
     console.error('getProductList error:', err);
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
@@ -244,6 +266,7 @@ exports.updateProduct = async (req, res) => {
     });
 
     return success(res, 'Product updated successfully');
+
 
   } catch (err) {
     console.error('updateProduct error:', err);

@@ -65,53 +65,67 @@ exports.addProductCategory = async (req, res) => {
 
 // Get list
 exports.getProductCategoryList = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty())
+      return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
     const offset = safeParseInt(req.body.offset, 0);
     const limit = safeParseInt(req.body.limit, 10);
-    const searchValue = req.body.searchValue || '';
-    const statusFilter = VALID_STATUS.includes(req.body.ProductCategoryStatus?.toUpperCase())
-        ? req.body.ProductCategoryStatus.toUpperCase()
-        : null;
+    const searchValue = (req.body.searchValue || '').trim();
+    const validStatuses = ['active', 'inactive'];
+    const statusFilter = (req.body.ProductCategoryStatus || '').toLowerCase(); // ✅ define here
 
-    try {
-        const where = {
-            AND: [
-                searchValue ? { name: { contains: searchValue, mode: 'insensitive' } } : null,
-                statusFilter ? { status: statusFilter } : null,
-            ].filter(Boolean),
-        };
+    const where = {
+      AND: [
+        searchValue
+          ? { name: { contains: searchValue, mode: 'insensitive' } }
+          : null,
+        statusFilter && validStatuses.includes(statusFilter)
+          ? { status: { equals: statusFilter === 'active' ? 'Active' : 'Inactive', mode: 'insensitive' } }
+          : null
+      ].filter(Boolean),
+    };
 
-        const skip = offset * limit;
+    const skip = offset * limit;
 
-        const [total, filteredCount, data] = await Promise.all([
-            prisma.product_categories.count(),
-            prisma.product_categories.count({ where }),
-            prisma.product_categories.findMany({ where, skip, take: limit, orderBy: { serial_no: 'asc' } }),
-        ]);
+    const [total, filteredCount, data] = await Promise.all([
+      prisma.product_categories.count(),
+      prisma.product_categories.count({ where }),
+      prisma.product_categories.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { serial_no: 'asc' },
+      }),
+    ]);
 
-        const safeData = convertBigIntToString(data);
-        const formattedData = safeData.map((item, index) => ({
-            id: safeParseInt(item.id),
-            name: item.name,
-            slug: item.slug,
-            status: item.status,
-            created_at: formatISTDate(item.created_at),
-            updated_at: formatISTDate(item.updated_at),
-            serial_no: item.serial_no ?? skip + index + 1,
-        }));
+    const safeData = convertBigIntToString(data);
+    const formattedData = safeData.map((item, index) => ({
+      id: safeParseInt(item.id),
+      name: item.name,
+      slug: item.slug,
+      status: item.status,
+      created_at: formatISTDate(item.created_at),
+      updated_at: formatISTDate(item.updated_at),
+      serial_no: item.serial_no ?? skip + index + 1,
+    }));
 
-        return res.status(200).json({
-            success: true,
-            statusCode: 1,
-            message: 'Data fetched successfully',
-            recordsTotal: total,
-            recordsFiltered: filteredCount,
-            data: formattedData,
-        });
-    } catch (err) {
-        console.error(err);
-        return error(res, 'Server error');
-    }
+    return res.status(200).json({
+      success: true,
+      statusCode: 1,
+      message: 'Data fetched successfully',
+      recordsTotal: total,
+      recordsFiltered: filteredCount,
+      data: formattedData,
+    });
+
+  } catch (err) {
+    console.error('getProductCategoryList error:', err);
+    return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
+  }
 };
+
 
 // Get by ID
 exports.getProductCategoryById = async (req, res) => {
