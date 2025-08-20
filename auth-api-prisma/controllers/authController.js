@@ -198,16 +198,20 @@ exports.loginUser = async (req, res) => {
       data: { ...historyBase, status: 'Success' },
     });
 
-    return success(res, 'Login successful', {
-      token,
-      user: {
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-      location: { latitude, longitude },
-      device: agent.toString ? agent.toString() : '',
-    });
+   return res.status(200).json({
+  success: true,
+  statusCode: 1,
+  token,
+  user: {
+    name: user.name,
+    email: user.email,
+    role: user.role,
+  },
+  location: { latitude, longitude },
+  device: agent.toString ? agent.toString() : '',
+  message: 'Login successful'
+});
+
   } catch (err) {
     console.error('Login error:', err);
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
