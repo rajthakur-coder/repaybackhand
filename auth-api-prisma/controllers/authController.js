@@ -199,7 +199,7 @@ exports.loginUser = async (req, res) => {
 
     await prisma.user_tokens.create({
       data: {
-    user_id: user.id.toString(), 
+        user_id: user.id, 
         token,
         token_type: "app",
         expires_at: expiresAt,
