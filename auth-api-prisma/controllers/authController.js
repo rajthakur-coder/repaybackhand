@@ -3,6 +3,8 @@ const { validationResult } = require('express-validator');
 const bcrypt = require('bcrypt');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const dayjs = require("dayjs");
+
 
 const { generateToken, verifyToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
@@ -82,6 +84,10 @@ exports.register = async (req, res) => {
  * - If temp user verified but not migrated yet → migrate to users + wallet, then continue
  * - Validate password, record login history, return token
  */
+// 
+
+
+
 exports.loginUser = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -89,11 +95,11 @@ exports.loginUser = async (req, res) => {
   }
 
   const { email, password, latitude, longitude } = req.body;
-  const agent = useragent.parse(req.headers['user-agent'] || '');
+  const agent = useragent.parse(req.headers["user-agent"] || "");
   const ip = getClientIp(req);
 
   if (agent.isBot) {
-    return error(res, 'Unidentified User Agent', RESPONSE_CODES.FAILED, 400);
+    return error(res, "Unidentified User Agent", RESPONSE_CODES.FAILED, 400);
   }
 
   try {
@@ -102,18 +108,18 @@ exports.loginUser = async (req, res) => {
 
     if (tempUser) {
       if (!tempUser.is_mobile_verified) {
-        await sendOtpRegistration(tempUser.mobile_no, 'mobile', tempUser.id);
-        return success(res, 'Mobile verification pending', {
-          verify: 'mobile',
+        await sendOtpRegistration(tempUser.mobile_no, "mobile", tempUser.id);
+        return success(res, "Mobile verification pending", {
+          verify: "mobile",
           info: maskMobile(tempUser.mobile_no),
           statusCode: RESPONSE_CODES.VERIFICATION_PENDING,
         });
       }
 
       if (!tempUser.is_email_verified) {
-        await sendOtpRegistration(tempUser.email, 'email', tempUser.id);
-        return success(res, 'Email verification pending', {
-          verify: 'email',
+        await sendOtpRegistration(tempUser.email, "email", tempUser.id);
+        return success(res, "Email verification pending", {
+          verify: "email",
           info: maskEmail(tempUser.email),
           statusCode: RESPONSE_CODES.VERIFICATION_PENDING,
         });
@@ -128,9 +134,9 @@ exports.loginUser = async (req, res) => {
             email: tempUser.email,
             password: tempUser.password,
             mobile_no: tempUser.mobile_no,
-            role: 'user',
-            status: 'active',
-            otp_status: 'verified',
+            role: tempUser.role,
+            status: "active",
+            otp_status: "verified",
             created_at: now,
             updated_at: now,
           },
@@ -153,70 +159,84 @@ exports.loginUser = async (req, res) => {
     }
 
     if (!user) {
-      return error(res, 'Invalid email address', RESPONSE_CODES.NOT_FOUND, 401);
+      return error(res, "Invalid email address", RESPONSE_CODES.NOT_FOUND, 401);
     }
 
     const valid = await bcrypt.compare(password, user.password);
 
     const historyBase = {
       user_id: user.uuid,
-      device: agent.device?.toString?.() || String(agent.device || ''),
-      operating_system: agent.os?.toString?.() || String(agent.os || ''),
-      browser: agent.toAgent ? agent.toAgent() : '',
+      device: agent.device?.toString?.() || String(agent.device || ""),
+      operating_system: agent.os?.toString?.() || String(agent.os || ""),
+      browser: agent.toAgent ? agent.toAgent() : "",
       ip_address: ip,
       latitude: latitude ? parseFloat(latitude) : null,
       longitude: longitude ? parseFloat(longitude) : null,
-      user_agent: req.headers['user-agent'] || '',
+      user_agent: req.headers["user-agent"] || "",
       created_at: new Date(),
       updated_at: new Date(),
     };
 
     if (!valid) {
       await prisma.login_history.create({
-        data: { ...historyBase, status: 'Failed' },
+        data: { ...historyBase, status: "Failed" },
       });
-      return error(res, 'Incorrect password', RESPONSE_CODES.FAILED, 401);
+      return error(res, "Incorrect password", RESPONSE_CODES.FAILED, 401);
     }
 
-    const allowedRoles = ['user', 'admin'];
+    const allowedRoles = ["user", "admin"];
     if (!allowedRoles.includes(user.role)) {
-      return error(res, 'Unauthorized role', RESPONSE_CODES.FAILED, 403);
+      return error(res, "Unauthorized role", RESPONSE_CODES.FAILED, 403);
     }
 
-    if (user.status !== 'active') {
-      return error(res, 'Account not active', RESPONSE_CODES.FAILED, 403);
+    if (user.status !== "active") {
+      return error(res, "Account not active", RESPONSE_CODES.FAILED, 403);
     }
 
-    const token = generateToken({
-      id: user.id,
-      uuid: user.uuid,
-      email: user.email,
-      role: user.role,
+    const tokenPayload = { id: user.id, uuid: user.uuid, email: user.email, role: user.role };
+    const token = generateToken(tokenPayload);
+    const expiresAt = dayjs().add(1, "hour").toDate();
+
+    await prisma.user_tokens.create({
+      data: {
+    user_id: user.id.toString(), 
+        token,
+        token_type: "app",
+        expires_at: expiresAt,
+        status: "active",
+        created_at: new Date(),
+      },
     });
 
     await prisma.login_history.create({
-      data: { ...historyBase, status: 'Success' },
+      data: { ...historyBase, status: "Success" },
     });
 
-   return res.status(200).json({
-  success: true,
-  statusCode: 1,
-  token,
-  user: {
-    name: user.name,
-    email: user.email,
-    role: user.role,
-  },
-  location: { latitude, longitude },
-  device: agent.toString ? agent.toString() : '',
-  message: 'Login successful'
-});
-
+    // 8 Return response
+    return res.status(200).json({
+      success: true,
+      statusCode: 1,
+      token,
+      expires_at: expiresAt,
+      user: {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      location: { latitude, longitude },
+      device: agent.toString ? agent.toString() : "",
+      message: "Login successful",
+    });
   } catch (err) {
-    console.error('Login error:', err);
-    return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
+    console.error("Login error:", err);
+    return error(res, "Server error", RESPONSE_CODES.FAILED, 500);
   }
 };
+
+
+
+
+
 
 /**
  * VERIFY OTP

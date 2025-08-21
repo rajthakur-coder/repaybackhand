@@ -110,7 +110,6 @@ const createProductPriceValidator = [
 
 const updateProductPriceValidator = [
   priceIdParamRule,
-  priceProductIdRule,
   priceRule,
   currencyRule,
 ];
