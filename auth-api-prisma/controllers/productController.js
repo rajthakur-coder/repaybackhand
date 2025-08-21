@@ -208,15 +208,15 @@ exports.updateProduct = async (req, res) => {
   if (!errors.isEmpty()) return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
 
   const id = safeParseInt(req.params.id);
-  // if (!id) return error(res, 'Product ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  if (!id) return error(res, 'Product ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
   try {
     const { category_id: rawCategoryId, name: rawName, description = '', status = 'Inactive' } = req.body;
     const category_id = safeParseInt(rawCategoryId);
     const name = (rawName || '').trim();
 
-    // if (!category_id) return error(res, 'Category ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
-    // if (!name) return error(res, 'Product name is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+    if (!category_id) return error(res, 'Category ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+    if (!name) return error(res, 'Product name is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
     const existing = await prisma.products.findUnique({ where: { id } });
     if (!existing) return error(res, 'Product not found', RESPONSE_CODES.NOT_FOUND, 404);
