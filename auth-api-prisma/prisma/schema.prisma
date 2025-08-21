@@ -224,3 +224,15 @@ model wallets {
   updated_at        DateTime? @db.Timestamp(6)
   users             users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
 }
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model user_tokens {
+  id         BigInt    @id @default(autoincrement())
+  user_id    String    @db.VarChar(50)
+  token      String
+  token_type String    @db.VarChar(10)
+  expires_at DateTime? @db.Timestamp(6)
+  status     String    @db.VarChar(8)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+}

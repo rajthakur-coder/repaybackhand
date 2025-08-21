@@ -179,99 +179,76 @@ module.exports = {
 
   // UPDATE product price
   async updateProductPrice(req, res) {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
-    }
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+  }
 
-    const id = safeParseInt(req.params.id);
-    if (!id) {
-      return error(res, 'Price ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
-    }
+  const id = safeParseInt(req.params.id);
+  if (!id) {
+    return error(res, 'Price ID is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  }
 
-    const product_id = safeParseInt(req.body.product_id);
-    const price = parseFloat(req.body.price);
-    const currency = (req.body.currency || '').trim();
+  const price = parseFloat(req.body.price);
+  const currency = (req.body.currency || '').trim();
 
-    if (!product_id || !price || !currency) {
-      return error(
-        res,
-        'Product ID, price, and currency are required and must be valid',
-        RESPONSE_CODES.VALIDATION_ERROR,
-        422
-      );
-    }
+  if (!price || !currency) {
+    return error(
+      res,
+      'Price and currency are required and must be valid',
+      RESPONSE_CODES.VALIDATION_ERROR,
+      422
+    );
+  }
 
-    try {
-      await prisma.$transaction(async (tx) => {
-        const existing = await tx.product_pricing.findUnique({ where: { id } });
-        if (!existing) {
-          throw { msg: 'Product price Not Found', code: RESPONSE_CODES.NOT_FOUND, status: 404 };
-        }
-
-        const productExists = await tx.products.findUnique({ where: { id: product_id } });
-        if (!productExists) {
-          throw { msg: 'Product not found', code: RESPONSE_CODES.NOT_FOUND, status: 404 };
-        }
-
-        const duplicate = await tx.product_pricing.findFirst({
-          where: {
-            id: { not: id },
-            product_id,
-          },
-        });
-
-        if (duplicate) {
-          throw {
-            msg: 'No changes detected, Product price is already up-to-date',
-            code: RESPONSE_CODES.DUPLICATE,
-            status: 409,
-          };
-        }
-
-        const isSame =
-          Number(existing.product_id) === Number(product_id) &&
-          Number(existing.price) === Number(price) &&
-          (existing.currency || '').toLowerCase() === currency.toLowerCase();
-
-        if (isSame) {
-          throw {
-            msg: 'No changes detected, Product price is already up-to-date',
-            code: RESPONSE_CODES.DUPLICATE,
-            status: 409,
-          };
-        }
-
-        await tx.product_pricing.update({
-          where: { id },
-          data: {
-            product_id,
-            price,
-            currency,
-            updated_at: new Date(),
-          },
-        });
-      });
-
-      logAuditTrail({
-        table_name: 'product_pricing',
-        row_id: id,
-        action: 'update',
-        user_id: req.user?.id,
-        ip_address: req.ip,
-        remark: `Price updated to ${price} ${currency} for product ID ${product_id}`,
-        status: 'Active',
-      }).catch((err) => console.error('Audit log failed:', err));
-
-      return success(res, 'Product price updated successfully');
-    } catch (err) {
-      if (err?.msg) {
-        return error(res, err.msg, err.code, err.status);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.product_pricing.findUnique({ where: { id } });
+      if (!existing) {
+        throw { msg: 'Product price Not Found', code: RESPONSE_CODES.NOT_FOUND, status: 404 };
       }
-      console.error('updateProductPrice error:', err);
-      return error(res, 'Server error');
+
+      const isSame =
+        Number(existing.price) === Number(price) &&
+        (existing.currency || '').toLowerCase() === currency.toLowerCase();
+
+      if (isSame) {
+        throw {
+          msg: 'No changes detected, Product price is already up-to-date',
+          code: RESPONSE_CODES.DUPLICATE,
+          status: 409,
+        };
+      }
+
+      await tx.product_pricing.update({
+        where: { id },
+        data: {
+          price,
+          currency,
+          updated_at: new Date(),
+        },
+      });
+    });
+
+    logAuditTrail({
+      table_name: 'product_pricing',
+      row_id: id,
+      action: 'update',
+      user_id: req.user?.id,
+      ip_address: req.ip,
+      remark: `Price updated to ${price} ${currency} for product price ID ${id}`,
+      status: 'Active',
+    }).catch((err) => console.error('Audit log failed:', err));
+
+    return success(res, 'Product price updated successfully');
+  } catch (err) {
+    if (err?.msg) {
+      return error(res, err.msg, err.code, err.status);
     }
-  },
+    console.error('updateProductPrice error:', err);
+    return error(res, 'Server error');
+  }
+},
 
   // DELETE product price
   async deleteProductPrice(req, res) {

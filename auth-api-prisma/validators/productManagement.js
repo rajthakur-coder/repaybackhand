@@ -76,7 +76,7 @@ const deleteProductValidation = [
 
 // Product Price Validators
 
-const allowedCurrencies = ['USD', 'INR', 'EUR', 'GBP', 'AUD', 'CAD', 'JPY'];
+const allowedCurrencies = ['INR'];
 
 const priceProductIdRule = body('product_id')
   .notEmpty().withMessage('Product ID is required')
