@@ -33,7 +33,7 @@ exports.addProductCategory = async (req, res) => {
         });
         if (existingCategory) return error(res, 'This Product Category already exists', RESPONSE_CODES.DUPLICATE, 409);
 
-        const slug = `${slugify(name, { lower: true })}-${Date.now()}`;
+        const slug = slugify(name, { lower: true });
         const dateObj = dayjs().tz('Asia/Kolkata').toDate();
         const nextSerial = await getNextSerial(prisma, 'product_categories');
 

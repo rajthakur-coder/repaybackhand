@@ -6,6 +6,15 @@ const { RESPONSE_CODES } = require('../utils/helper');
 const { success, error } = require('../utils/response');
 const { safeParseInt, convertBigIntToString } = require('../utils/parser');
 const { getNextSerial, reorderSerials } = require('../utils/serial');
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+const ISTFormat = (d) => (d ? dayjs(d).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null);
+
 
 
 module.exports = {
@@ -115,8 +124,8 @@ module.exports = {
         product_id: item.product_id.toString(),
         products: item.products?.name || null,
         price: item.price.toString(),
-        created_at: item.created_at,
-        updated_at: item.updated_at,
+        created_at: ISTFormat(item.created_at),
+        updated_at: ISTFormat(item.updated_at),
       }));
 
       return res.status(200).json({
