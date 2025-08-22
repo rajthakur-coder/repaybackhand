@@ -305,39 +305,82 @@ exports.deleteProduct = async (req, res) => {
 };
 
 // CHANGE PRODUCT STATUS 
+// exports.changeProductStatus = async (req, res) => {
+//   const errors = validationResult(req);
+//   if (!errors.isEmpty()) return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+
+//   const id = safeParseInt(req.params.id);
+//   const { status } = req.body;
+//   if (!id) return error(res, 'Product Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
+//   const validStatuses = ['Active', 'Inactive'];
+//   if (!validStatuses.includes(status)) return error(res, 'Invalid status value', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
+//   try {
+//     const product = await prisma.products.findUnique({ where: { id } });
+//     if (!product) return error(res, 'Product Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+//     if (product.status === status) return error(res, 'Product status is already up-to-date', RESPONSE_CODES.DUPLICATE, 409);
+
+//     await prisma.products.update({ where: { id }, data: { status, updated_at: new Date() } });
+
+//     safeLogAuditTrail({
+//       table_name: 'products',
+//       row_id: id,
+//       action: 'update',
+//       user_id: req.user?.id || null,
+//       ip_address: req.ip,
+//       remark: `Product "${product.name}" status changed from "${product.status}" to "${status}"`,
+//       updated_by: req.user?.id || null,
+//       status
+//     });
+
+//     return success(res, 'Product status updated successfully');
+
+//   } catch (err) {
+//     console.error('changeProductStatus error:', err);
+//     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
+//   }
+// };
+
+
 exports.changeProductStatus = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
-
   const id = safeParseInt(req.params.id);
-  const { status } = req.body;
-  if (!id) return error(res, 'Product Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
-
-  const validStatuses = ['Active', 'Inactive'];
-  if (!validStatuses.includes(status)) return error(res, 'Invalid status value', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  if (!id || id <= 0) {
+    return error(res, 'Product Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  }
 
   try {
+    // Fetch the product from DB
     const product = await prisma.products.findUnique({ where: { id } });
-    if (!product) return error(res, 'Product Not Found', RESPONSE_CODES.NOT_FOUND, 404);
-    if (product.status === status) return error(res, 'Product status is already up-to-date', RESPONSE_CODES.DUPLICATE, 409);
+    if (!product) {
+      return error(res, 'Product Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+    }
 
-    await prisma.products.update({ where: { id }, data: { status, updated_at: new Date() } });
+    // Toggle status: 'Active' <-> 'Inactive' (case-sensitive)
+    const newStatus = product.status === 'Active' ? 'Inactive' : 'Active';
 
+    // Update the status
+    await prisma.products.update({
+      where: { id },
+      data: { status: newStatus, updated_at: new Date() },
+    });
+
+    // Log audit trail
     safeLogAuditTrail({
       table_name: 'products',
       row_id: id,
       action: 'update',
       user_id: req.user?.id || null,
       ip_address: req.ip,
-      remark: `Product "${product.name}" status changed from "${product.status}" to "${status}"`,
+      remark: `Product "${product.name}" status changed from "${product.status}" to "${newStatus}"`,
       updated_by: req.user?.id || null,
-      status
+      status: newStatus
     });
 
-    return success(res, 'Product status updated successfully');
+    return success(res, `Product status changed to ${newStatus}`);
 
   } catch (err) {
-    console.error('changeProductStatus error:', err);
+    console.error('toggleProductStatus error:', err);
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };

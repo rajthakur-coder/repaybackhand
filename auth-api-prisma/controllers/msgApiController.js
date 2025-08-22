@@ -314,3 +314,50 @@ exports.deleteMsgApi = async (req, res) => {
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };
+
+
+
+// change status of Messaging API
+exports.changeMsgApiStatus = async (req, res) => {
+  const id = safeParseInt(req.params.id);
+  if (!id || id <= 0) {
+    return error(res, 'Message API Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  }
+
+  try {
+    // Fetch the API from DB
+    const api = await prisma.msg_apis.findUnique({ where: { id } });
+    if (!api) return error(res, 'Message API Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+
+    // Toggle status: 'Active' <-> 'Inactive' (case-sensitive)
+    const newStatus = api.status === 'Active' ? 'Inactive' : 'Active';
+
+    const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
+
+    // Update status in DB
+    await prisma.msg_apis.update({
+      where: { id },
+      data: { status: newStatus, updated_at: updatedAt },
+    });
+
+    // Log audit trail
+    await logAuditTrail({
+      table_name: 'msg_apis',
+      row_id: id,
+      action: 'update',
+      user_id: req.user?.id || null,
+      ip_address: req.ip,
+      remark: `Messaging API "${api.api_name}" status changed from "${api.status}" to "${newStatus}"`,
+      updated_by: req.user?.id || null,
+      status: newStatus
+    });
+
+    return success(res, `Message API status changed to ${newStatus}`);
+
+  } catch (err) {
+    console.error('toggleMsgApiStatus error:', err);
+    return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
+  }
+};
+
+

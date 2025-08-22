@@ -34,7 +34,7 @@ const securedRoutes = createSecuredRoutes(authMiddleware, (router) => {
   router.get('/category/byid/:id', productCategoryController.getProductCategoryById);
   router.put('/category/update/:id', updateProductCategoryValidation, productCategoryController.updateProductCategory);
   router.delete('/category/delete/:id', deleteCategoryValidation, productCategoryController.deleteProductCategory);
-  router.post('/category/change-status/:id', changeCategoryStatusValidation, productCategoryController.changeProductCategoryStatus);
+  router.patch('/category/change-status/:id', changeCategoryStatusValidation, productCategoryController.changeProductCategoryStatus);
 
   // Product Routes
   router.post('/products/add', upload.single('icon'), addProductValidation, productController.addProduct);
@@ -42,7 +42,7 @@ const securedRoutes = createSecuredRoutes(authMiddleware, (router) => {
   router.get('/products/byid/:id', productController.getProductById);
   router.put('/products/update/:id', upload.single('icon'), updateProductValidation, productController.updateProduct);
   router.delete('/products/delete/:id', deleteProductValidation, productController.deleteProduct);
-  router.post('/products/change-status/:id', changeProductStatusValidation, productController.changeProductStatus);
+  router.patch('/products/change-status/:id', changeProductStatusValidation, productController.changeProductStatus);
 
   // Product Price Routes
   router.post('/prices/add', createProductPriceValidator, productPriceController.addProductPrice);

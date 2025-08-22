@@ -228,31 +228,72 @@ exports.deleteProductCategory = async (req, res) => {
 };
 
 // Change status
+// exports.changeProductCategoryStatus = async (req, res) => {
+//     const id = safeParseInt(req.params.id);
+//     const { status } = req.body;
+
+//     if (!id || isNaN(id) || id <= 0) return error(res, 'Invalid or missing product category ID', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
+//     try {
+//         const existingCategory = await prisma.product_categories.findUnique({ where: { id } });
+//         if (!existingCategory) return error(res, 'Product Category Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+//         if (existingCategory.status === status) return error(res, 'Product category status is already the same', RESPONSE_CODES.DUPLICATE, 409);
+
+//         await prisma.product_categories.update({ where: { id }, data: { status } });
+
+//         logAuditTrail({
+//             table_name: 'product_categories',
+//             row_id: id,
+//             action: 'update',
+//             user_id: req.user?.id ? Number(req.user.id) : null,
+//             ip_address: req.ip,
+//             remark: `Status changed to ${status}`,
+//             updated_by: req.user?.id || null,
+//             status,
+//         }).catch(err => console.error('Audit log failed:', err));
+
+//         return success(res, 'Product Category status updated successfully');
+//     } catch (err) {
+//         console.error(err);
+//         return error(res, 'Server error');
+//     }
+// };
+
 exports.changeProductCategoryStatus = async (req, res) => {
     const id = safeParseInt(req.params.id);
-    const { status } = req.body;
 
-    if (!id || isNaN(id) || id <= 0) return error(res, 'Invalid or missing product category ID', RESPONSE_CODES.VALIDATION_ERROR, 422);
+    if (!id || isNaN(id) || id <= 0) {
+        return error(res, 'Invalid or missing product category ID', RESPONSE_CODES.VALIDATION_ERROR, 422);
+    }
 
     try {
+        // Fetch existing category from DB
         const existingCategory = await prisma.product_categories.findUnique({ where: { id } });
-        if (!existingCategory) return error(res, 'Product Category Not Found', RESPONSE_CODES.NOT_FOUND, 404);
-        if (existingCategory.status === status) return error(res, 'Product category status is already the same', RESPONSE_CODES.DUPLICATE, 409);
+        if (!existingCategory) {
+            return error(res, 'Product Category Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+        }
 
-        await prisma.product_categories.update({ where: { id }, data: { status } });
+const newStatus = existingCategory.status === 'Active' ? 'Inactive' : 'Active';
 
+        // Update the status n the database
+        await prisma.product_categories.update({
+            where: { id },
+            data: { status: newStatus, updated_at: new Date() }, // updated_at optional
+        });
+
+        // Log audit trail
         logAuditTrail({
             table_name: 'product_categories',
             row_id: id,
             action: 'update',
             user_id: req.user?.id ? Number(req.user.id) : null,
             ip_address: req.ip,
-            remark: `Status changed to ${status}`,
+            remark: `Status toggled to ${newStatus}`,
             updated_by: req.user?.id || null,
-            status,
+            status: newStatus,
         }).catch(err => console.error('Audit log failed:', err));
 
-        return success(res, 'Product Category status updated successfully');
+        return success(res, `Product Category status changed to ${newStatus}`);
     } catch (err) {
         console.error(err);
         return error(res, 'Server error');
