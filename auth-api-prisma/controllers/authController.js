@@ -19,12 +19,8 @@ const {
   RESPONSE_CODES,
 } = require('../utils/helper');
 
-/**
- * REGISTER
- * - Creates temp user
- * - Sends OTPs (email + mobile) via sendOtpRegistration (which should write to otp_verifications)
- * - Returns a temp token for OTP verification
- */
+
+//REGISTER 
 exports.register = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -78,16 +74,8 @@ exports.register = async (req, res) => {
   }
 };
 
-/**
- * LOGIN
- * - If temp user exists and verification pending → resend OTP and return pending state
- * - If temp user verified but not migrated yet → migrate to users + wallet, then continue
- * - Validate password, record login history, return token
- */
-// 
 
-
-
+//  LOGIN
 exports.loginUser = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -134,7 +122,7 @@ exports.loginUser = async (req, res) => {
             email: tempUser.email,
             password: tempUser.password,
             mobile_no: tempUser.mobile_no,
-            role: tempUser.role,
+            role: tempUser.role || "user",
             status: "active",
             otp_status: "verified",
             created_at: now,
@@ -212,7 +200,6 @@ exports.loginUser = async (req, res) => {
       data: { ...historyBase, status: "Success" },
     });
 
-    // 8 Return response
     return res.status(200).json({
       success: true,
       statusCode: 1,
@@ -234,15 +221,7 @@ exports.loginUser = async (req, res) => {
 };
 
 
-
-
-
-
-/**
- * VERIFY OTP
- * - Validates both email and mobile OTPs (using otp_verifications)
- * - Marks them verified, creates user + wallet, deletes temp user
- */
+//VERIFY OTP
 exports.verifyOtp = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {

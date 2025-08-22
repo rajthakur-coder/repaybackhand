@@ -1,4 +1,3 @@
-// utils/serial.js
 
 // Get the next serial number (transaction-safe)
 async function getNextSerial(prismaOrTx, model) {

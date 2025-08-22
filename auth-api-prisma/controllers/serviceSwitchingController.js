@@ -15,10 +15,6 @@ dayjs.extend(timezone);
 
 const VALID_STATUS = ['Active', 'Inactive'];
 
-// function formatISTDate(date) {
-//   return date ? dayjs(date).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null;
-// }
-
 // Add Service Switching
 exports.addServiceSwitching = async (req, res) => {
   const errors = validationResult(req);
@@ -67,6 +63,7 @@ exports.addServiceSwitching = async (req, res) => {
       user_id: req.user?.id || null,
       ip_address: req.ip,
       remark: `Service Switching created for API Code ${api_code}`,
+      created_by: req.user?.id || null,
       status: 'Created'
     }).catch(err => console.error('Audit log error:', err));
 
@@ -152,11 +149,9 @@ exports.getServiceSwitchingById = async (req, res) => {
 
     const formattedData = convertBigIntToString(data);
 
-    // Flatten nested objects
     formattedData.api_name = data.msg_apis?.api_name || null;
     formattedData.product_name = data.products?.name || null;
 
-    // Remove original nested objects
     delete formattedData.msg_apis;
     delete formattedData.products;
 
@@ -214,6 +209,7 @@ exports.updateServiceSwitching = async (req, res) => {
       user_id: req.user?.id || null,
       ip_address: req.ip,
       remark: `Service Switching updated for API Code ${api_code}`,
+      updated_by: req.user?.id || null,
       status: 'Updated'
     }).catch(err => console.error('Audit log error:', err));
 
@@ -243,7 +239,8 @@ exports.deleteServiceSwitching = async (req, res) => {
       user_id: req.user?.id || null,
       ip_address: req.ip,
       remark: `Service Switching deleted`,
-      status: 'Deleted'
+      status: 'Deleted',
+      deleted_by: req.user?.id || null,
     }).catch(err => console.error('Audit log error:', err));
 
     return success(res, 'Service Switching Deleted Successfully');
@@ -256,3 +253,58 @@ exports.deleteServiceSwitching = async (req, res) => {
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };
+
+
+
+// Change Service Switching Status (only one active per product)
+exports.changeServiceSwitchingStatus = async (req, res) => {
+  const id = BigInt(safeParseInt(req.params.id));
+  const { status } = req.body;
+
+  if (!id) {
+  }
+
+  if (!status || !VALID_STATUS.includes(status.toUpperCase())) {
+  }
+
+  try {
+    const existing = await prisma.service_switchings.findUnique({ where: { id } });
+    if (!existing) {
+      return error(res, 'Service Switching Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+    }
+
+    const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
+
+    await prisma.$transaction(async (tx) => {
+      if (status.toUpperCase() === 'ACTIVE') {
+        await tx.service_switchings.updateMany({
+          where: { product_id: existing.product_id },
+          data: { status: 'INACTIVE', updated_at: updatedAt }
+        });
+      }
+
+      await tx.service_switchings.update({
+        where: { id },
+        data: { status: status.toUpperCase(), updated_at: updatedAt }
+      });
+    });
+
+    logAuditTrail({
+      table_name: 'service_switchings',
+      row_id: id,
+      action: 'update',
+      user_id: req.user?.id || null,
+      ip_address: req.ip,
+      remark: `Service Switching status changed to ${status.toUpperCase()}`,
+      updated_by: req.user?.id || null,
+      status
+    }).catch(err => console.error('Audit log error:', err));
+
+    return success(res, `Service Switching status updated to ${status.toUpperCase()}`);
+
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
+  }
+};
+

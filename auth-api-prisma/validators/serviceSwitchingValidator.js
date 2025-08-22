@@ -1,5 +1,7 @@
 const { body, param } = require('express-validator');
 
+const VALID_STATUS = ['ACTIVE', 'INACTIVE'];
+
 // ID in URL params
 const idParamRule = param('id')
   .isInt({ gt: 0 })
@@ -56,12 +58,17 @@ const txnLimitRule = body('txn_limit')
   .notEmpty().withMessage('Transaction limit is required')
   .isInt({ gt: 0 }).withMessage('Transaction limit must be a positive integer');
 
-// Status
+// Status (common rule)
 const statusRule = body('status')
   .optional()
-  .isIn(['Active', 'Inactive']).withMessage('Status must be Active or Inactive');
+  .custom((value) => {
+    if (!VALID_STATUS.includes(value.toUpperCase())) {
+      throw new Error('Status must be Active or Inactive');
+    }
+    return true;
+  });
 
-// Add Service Switching
+// Validators
 const addServiceSwitchingValidation = [
   apiIdRule,
   productIdRule,
@@ -75,7 +82,6 @@ const addServiceSwitchingValidation = [
   statusRule
 ];
 
-// Update Service Switching
 const updateServiceSwitchingValidation = [
   idParamRule,
   apiIdRule,
@@ -90,13 +96,23 @@ const updateServiceSwitchingValidation = [
   statusRule
 ];
 
-// Delete Service Switching
-const deleteServiceSwitchingValidation = [
-  idParamRule
+const deleteServiceSwitchingValidation = [idParamRule];
+
+const changeServiceSwitchingStatusValidation = [
+  idParamRule,
+  body('status')
+    .notEmpty().withMessage('Status is required')
+    .custom((value) => {
+      if (!VALID_STATUS.includes(value.toUpperCase())) {
+        throw new Error('Invalid status value. Allowed: Active, Inactive');
+      }
+      return true;
+    })
 ];
 
 module.exports = {
   addServiceSwitchingValidation,
   updateServiceSwitchingValidation,
-  deleteServiceSwitchingValidation
+  deleteServiceSwitchingValidation,
+  changeServiceSwitchingStatusValidation
 };

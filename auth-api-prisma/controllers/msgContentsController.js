@@ -68,6 +68,7 @@ exports.addMsgContent = async (req, res) => {
       user_id: req.user?.id || null,
       ip_address: req.ip,
       remark: `Message content created for type ${message_type}`,
+      created_by: req.user?.id || null,
       status: 'Created'
     }).catch(err => console.error('Audit log failed:', err));
 
@@ -192,6 +193,7 @@ exports.updateMsgContent = async (req, res) => {
       user_id: req.user?.id || null,
       ip_address: req.ip,
       remark: `Message content updated for type ${message_type}`,
+      updated_by: req.user?.id || null,
       status: 'Updated'
     }).catch(err => console.error('Audit log failed:', err));
 
@@ -219,6 +221,7 @@ exports.deleteMsgContent = async (req, res) => {
         user_id: req.user?.id || null,
         ip_address: req.ip,
         remark: 'Message content deleted',
+        deleted_by: req.user?.id || null,
         status: 'Deleted'
       }).catch(err => console.error('Audit log failed:', err));
     });

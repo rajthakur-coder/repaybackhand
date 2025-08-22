@@ -65,6 +65,7 @@ exports.addProduct = async (req, res) => {
         user_id: req.user?.id || null,
         ip_address: req.ip,
         remark: `Product "${created.name}" created`,
+        created_by: req.user?.id || null,
         status: created.status
       });
 
@@ -252,6 +253,7 @@ exports.updateProduct = async (req, res) => {
         user_id: req.user?.id || null,
         ip_address: req.ip,
         remark: `Product "${name}" updated`,
+        updated_by: req.user?.id || null,
         status
       });
     });
@@ -289,6 +291,7 @@ exports.deleteProduct = async (req, res) => {
         user_id: req.user?.id || null,
         ip_address: req.ip,
         remark: `Product "${product.name}" deleted`,
+        deleted_by: req.user?.id || null,
         status: 'Deleted'
       });
     });
@@ -308,10 +311,10 @@ exports.changeProductStatus = async (req, res) => {
 
   const id = safeParseInt(req.params.id);
   const { status } = req.body;
-  // if (!id) return error(res, 'Product Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  if (!id) return error(res, 'Product Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
   const validStatuses = ['Active', 'Inactive'];
-  // if (!validStatuses.includes(status)) return error(res, 'Invalid status value', RESPONSE_CODES.VALIDATION_ERROR, 422);
+  if (!validStatuses.includes(status)) return error(res, 'Invalid status value', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
   try {
     const product = await prisma.products.findUnique({ where: { id } });
@@ -327,6 +330,7 @@ exports.changeProductStatus = async (req, res) => {
       user_id: req.user?.id || null,
       ip_address: req.ip,
       remark: `Product "${product.name}" status changed from "${product.status}" to "${status}"`,
+      updated_by: req.user?.id || null,
       status
     });
 

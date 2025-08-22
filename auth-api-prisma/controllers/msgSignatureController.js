@@ -59,6 +59,7 @@ exports.addOrUpdateSignature = async (req, res) => {
           user_id,
           ip_address,
           signature_type,
+          updated_by: req.user?.id || null,
           status
         });
 
@@ -75,6 +76,7 @@ exports.addOrUpdateSignature = async (req, res) => {
           user_id,
           ip_address,
           signature_type,
+          created_by: req.user?.id || null,
           status
         });
 

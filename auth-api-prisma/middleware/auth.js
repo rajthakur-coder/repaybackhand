@@ -1,27 +1,3 @@
-// const jwtUtils = require('../utils/jwt');
-
-// function verifyTokenMiddleware(req, res, next) {
-//   const authHeader = req.headers['authorization'];
-//   const token = authHeader && authHeader.split(' ')[1];
-
-//   if (!token) {
-//     return res.status(401).json({ error: 'No token provided' });
-//   }
-
-//   const decoded = jwtUtils.verifyToken(token);
-
-//   if (!decoded) {
-//     return res.status(401).json({ error: 'Token expired or invalid' });
-//   }
-
-//   req.user = decoded;
-//   next();
-// }
-
-// module.exports = verifyTokenMiddleware;
-
-
-
 const dayjs = require("dayjs");
 const { verifyToken } = require("../utils/jwt");
 const { PrismaClient } = require("@prisma/client");
@@ -73,7 +49,7 @@ async function verifyTokenMiddleware(req, res, next) {
 
     // 6️ Attach user details to request
     req.user = {
-      user_id: accessToken.user_id,
+      id: accessToken.user_id,
       role: accessToken.user.role,
       token_type: accessToken.token_type,
     };

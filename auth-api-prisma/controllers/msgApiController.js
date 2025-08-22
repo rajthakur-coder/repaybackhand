@@ -31,23 +31,21 @@ exports.addMsgApi = async (req, res) => {
 
   const { api_name, api_type, base_url, params, method, status } = req.body;
 
-  // Additional status check
-  const validStatuses = ['active', 'inactive'];
-  if (!validStatuses.includes(status?.toLowerCase())) {
-    return error(
-      res,
-      'Status must be active or inactive',
-      RESPONSE_CODES.VALIDATION_ERROR,
-      422
-    );
-  }
+  // const validStatuses = ['active', 'inactive'];
+  // if (!validStatuses.includes(status?.toLowerCase())) {
+  //   return error(
+  //     res,
+  //     'Status must be active or inactive',
+  //     RESPONSE_CODES.VALIDATION_ERROR,
+  //     422
+  //   );
+  // }
 
   const dateObj = dayjs().tz('Asia/Kolkata').toDate();
 
   try {
-    // 3️Transaction-safe creation
+
     const newApi = await prisma.$transaction(async (tx) => {
-      // Duplicate check inside transaction
       const existingApi = await tx.msg_apis.findFirst({
         where: { api_name: { equals: api_name, mode: 'insensitive' } }
       });
@@ -56,10 +54,7 @@ exports.addMsgApi = async (req, res) => {
         throw new Error('DUPLICATE_API');
       }
 
-      // Get next serial number atomically
       const nextSerial = await getNextSerial(tx, 'msg_apis');
-
-      // Create API record
       const api = await tx.msg_apis.create({
         data: {
           api_name,
@@ -74,7 +69,6 @@ exports.addMsgApi = async (req, res) => {
         }
       });
 
-      // Audit log awaited
       await logAuditTrail({
         table_name: 'msg_apis',
         row_id: api.id,
@@ -82,23 +76,22 @@ exports.addMsgApi = async (req, res) => {
         user_id: req.user?.id || null,
         ip_address: req.ip,
         remark: `Messaging API "${api_name}" created`,
+        created_by: req.user?.id || null,
         status
       });
 
       return api;
     });
 
-      const safeApi = {
+    const safeApi = {
       ...newApi,
       id: newApi.id.toString(),
       serial_no: newApi.serial_no.toString()
     };
 
-    // 4️⃣ Success response
     return success(res, 'Message API Added Successfully');
 
   } catch (err) {
-    // 5️⃣ Duplicate error handling
     if (err.message === 'DUPLICATE_API') {
       return error(
         res,
@@ -132,7 +125,6 @@ exports.getMsgApiList = async (req, res) => {
   const statusFilter = req.body.status;
 
   try {
-    // 2 Build where filter
     const where = {
       AND: [
         searchValue ? { api_name: { contains: searchValue, mode: 'insensitive' } } : null,
@@ -146,7 +138,7 @@ exports.getMsgApiList = async (req, res) => {
       prisma.msg_apis.count({ where }),
       prisma.msg_apis.findMany({
         where,
-        skip: offset * limit,     
+        skip: offset * limit,
         take: limit,
         orderBy: { serial_no: 'asc' }
       })
@@ -160,7 +152,6 @@ exports.getMsgApiList = async (req, res) => {
       updated_at: formatISTDate(item.updated_at)
     }));
 
-    //  Send response
     return res.status(200).json({
       success: true,
       statusCode: 1,
@@ -211,7 +202,7 @@ exports.getMsgApiById = async (req, res) => {
 
 // Update API
 exports.updateMsgApi = async (req, res) => {
-  // 1️⃣ Validation
+
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
@@ -228,20 +219,19 @@ exports.updateMsgApi = async (req, res) => {
     const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
 
     await prisma.$transaction(async (tx) => {
-      // 2️⃣ Fetch current API
+
       const api = await tx.msg_apis.findUnique({ where: { id } });
       if (!api) throw new Error('API_NOT_FOUND');
 
-      // 3️⃣ Check for duplicates (other records with same name)
+
       const duplicate = await tx.msg_apis.findFirst({
-        where: { 
+        where: {
           api_name: { equals: api_name, mode: 'insensitive' },
-          id: { not: id } 
+          id: { not: id }
         }
       });
       if (duplicate) throw new Error('DUPLICATE_NAME');
 
-      // 4️⃣ Check if data is actually changed
       const isSame =
         api.api_name === api_name &&
         api.api_type === api_type &&
@@ -251,17 +241,16 @@ exports.updateMsgApi = async (req, res) => {
         api.status === status;
 
       if (isSame) {
-        // Already up-to-date → no update needed
         return error(res, 'No changes detected. API already up-to-date', RESPONSE_CODES.FAILED, 200);
       }
 
-      // 5️⃣ Update record
+
       await tx.msg_apis.update({
         where: { id },
         data: { api_name, api_type, base_url, params, method, status, updated_at: updatedAt }
       });
 
-      // 6️⃣ Audit log
+
       await logAuditTrail({
         table_name: 'msg_apis',
         row_id: id,
@@ -269,11 +258,12 @@ exports.updateMsgApi = async (req, res) => {
         user_id: req.user?.id || null,
         ip_address: req.ip,
         remark: `Messaging API "${api_name}" updated`,
+        updated_by: req.user?.id || null,
         status
       });
     });
 
-    // 7️⃣ Success response
+
     return success(res, 'Message API updated successfully');
 
   } catch (err) {
@@ -312,6 +302,7 @@ exports.deleteMsgApi = async (req, res) => {
         user_id: req.user?.id,
         ip_address: req.ip,
         remark: `Messaging API deleted`,
+        deleted_by: req.user?.id || null,
         status: 'Deleted'
       }).catch(err => console.error('Audit log failed:', err));
     });

@@ -14,7 +14,7 @@ const { safeParseInt, convertBigIntToString } = require('../utils/parser');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const VALID_STATUS = ['Active', 'Inactive'];
+// const VALID_STATUS = ['Active', 'Inactive'];
 
 function formatISTDate(date) {
     return date ? dayjs(date).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss') : null;
@@ -48,6 +48,7 @@ exports.addProductCategory = async (req, res) => {
             user_id: req.user?.id ? Number(req.user.id) : null,
             ip_address: req.ip,
             remark: `Product category "${name}" created`,
+            created_by: req.user?.id || null,
             status,
         }).catch(err => console.error('Audit log failed:', err));
 
@@ -65,65 +66,65 @@ exports.addProductCategory = async (req, res) => {
 
 // Get list
 exports.getProductCategoryList = async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty())
-      return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty())
+            return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
 
-    const offset = safeParseInt(req.body.offset, 0);
-    const limit = safeParseInt(req.body.limit, 10);
-    const searchValue = (req.body.searchValue || '').trim();
-    const validStatuses = ['active', 'inactive'];
-    const statusFilter = (req.body.ProductCategoryStatus || '').toLowerCase(); 
+        const offset = safeParseInt(req.body.offset, 0);
+        const limit = safeParseInt(req.body.limit, 10);
+        const searchValue = (req.body.searchValue || '').trim();
+        const validStatuses = ['active', 'inactive'];
+        const statusFilter = (req.body.ProductCategoryStatus || '').toLowerCase();
 
-    const where = {
-      AND: [
-        searchValue
-          ? { name: { contains: searchValue, mode: 'insensitive' } }
-          : null,
-        statusFilter && validStatuses.includes(statusFilter)
-          ? { status: { equals: statusFilter === 'active' ? 'Active' : 'Inactive', mode: 'insensitive' } }
-          : null
-      ].filter(Boolean),
-    };
+        const where = {
+            AND: [
+                searchValue
+                    ? { name: { contains: searchValue, mode: 'insensitive' } }
+                    : null,
+                statusFilter && validStatuses.includes(statusFilter)
+                    ? { status: { equals: statusFilter === 'active' ? 'Active' : 'Inactive', mode: 'insensitive' } }
+                    : null
+            ].filter(Boolean),
+        };
 
-    const skip = offset * limit;
+        const skip = offset * limit;
 
-    const [total, filteredCount, data] = await Promise.all([
-      prisma.product_categories.count(),
-      prisma.product_categories.count({ where }),
-      prisma.product_categories.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { serial_no: 'asc' },
-      }),
-    ]);
+        const [total, filteredCount, data] = await Promise.all([
+            prisma.product_categories.count(),
+            prisma.product_categories.count({ where }),
+            prisma.product_categories.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { serial_no: 'asc' },
+            }),
+        ]);
 
-    const safeData = convertBigIntToString(data);
-    const formattedData = safeData.map((item, index) => ({
-      id: safeParseInt(item.id),
-      name: item.name,
-      slug: item.slug,
-      status: item.status,
-      created_at: formatISTDate(item.created_at),
-      updated_at: formatISTDate(item.updated_at),
-      serial_no: item.serial_no ?? skip + index + 1,
-    }));
+        const safeData = convertBigIntToString(data);
+        const formattedData = safeData.map((item, index) => ({
+            id: safeParseInt(item.id),
+            name: item.name,
+            slug: item.slug,
+            status: item.status,
+            created_at: formatISTDate(item.created_at),
+            updated_at: formatISTDate(item.updated_at),
+            serial_no: item.serial_no ?? skip + index + 1,
+        }));
 
-    return res.status(200).json({
-      success: true,
-      statusCode: 1,
-      message: 'Data fetched successfully',
-      recordsTotal: total,
-      recordsFiltered: filteredCount,
-      data: formattedData,
-    });
+        return res.status(200).json({
+            success: true,
+            statusCode: 1,
+            message: 'Data fetched successfully',
+            recordsTotal: total,
+            recordsFiltered: filteredCount,
+            data: formattedData,
+        });
 
-  } catch (err) {
-    console.error('getProductCategoryList error:', err);
-    return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
-  }
+    } catch (err) {
+        console.error('getProductCategoryList error:', err);
+        return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
+    }
 };
 
 
@@ -184,6 +185,7 @@ exports.updateProductCategory = async (req, res) => {
             user_id: req.user?.id ? Number(req.user.id) : null,
             ip_address: req.ip,
             remark: `Product category "${name}" updated`,
+            updated_by: req.user?.id || null,
             status,
         }).catch(err => console.error('Audit log failed:', err));
 
@@ -213,6 +215,7 @@ exports.deleteProductCategory = async (req, res) => {
                 user_id: req.user?.id ? Number(req.user.id) : null,
                 ip_address: req.ip,
                 remark: `Product category deleted`,
+                deleted_by: req.user?.id || null,
                 status: 'DELETED',
             }).catch(err => console.error('Audit log failed:', err));
         });
@@ -241,10 +244,11 @@ exports.changeProductCategoryStatus = async (req, res) => {
         logAuditTrail({
             table_name: 'product_categories',
             row_id: id,
-            action: 'status_change',
+            action: 'update',
             user_id: req.user?.id ? Number(req.user.id) : null,
             ip_address: req.ip,
             remark: `Status changed to ${status}`,
+            updated_by: req.user?.id || null,
             status,
         }).catch(err => console.error('Audit log failed:', err));
 

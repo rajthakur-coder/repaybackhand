@@ -22,19 +22,6 @@ const verifyToken = (token) => {
   }
 };
 
-// const verifyToken = (token) => {
-//   if (!process.env.JWT_SECRET) {
-//     console.error("JWT_SECRET is not defined in environment variables");
-//     return null;
-//   }
-
-//   try {
-//     return jwt.verify(token, process.env.JWT_SECRET);
-//   } catch (err) {
-//     console.error("JWT verification failed:", err.message);
-//     return null;
-//   }
-// };
 
 module.exports = {
   generateToken,
