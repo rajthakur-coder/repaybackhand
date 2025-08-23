@@ -26,7 +26,7 @@ exports.addServiceSwitching = async (req, res) => {
 
   try {
     const [apiExists, productExists, existing] = await Promise.all([
-      prisma.msg_apis.findUnique({ where: { id: api_id } }),
+      prisma.apis.findUnique({ where: { id: api_id } }),
       prisma.products.findUnique({ where: { id: product_id } }),
       prisma.service_switchings.findFirst({ where: { api_id, product_id } })
     ]);
@@ -96,7 +96,7 @@ exports.getServiceSwitchingList = async (req, res) => {
       skip: offset * limit,
       take: limit,
       orderBy: { serial_no: 'asc' },
-      include: { msg_apis: true, products: true }
+      include: { apis: true, products: true }
     });
 
     const formattedData = convertBigIntToString(data).map(item => {
@@ -107,7 +107,7 @@ exports.getServiceSwitchingList = async (req, res) => {
       return {
         id: item.id.toString(),
         serial_no: item.serial_no,
-        api_name: item.msg_apis?.api_name || '',
+        api_name: item.apis?.api_name || '',   // yaha bhi msg_apis -> apis
         product: item.products?.name || '',
         apiServiceCode: item.api_code || '0',
         purchase: purchaseText,
@@ -140,22 +140,33 @@ exports.getServiceSwitchingById = async (req, res) => {
     const data = await prisma.service_switchings.findUnique({
       where: { id },
       include: {
-        msg_apis: { select: { api_name: true } },
-        products: { select: { name: true } }
+        apis: { select: { api_name: true } },   // ✅ apis
+        products: { select: { name: true } }    // ✅ products
       }
     });
 
     if (!data) return error(res, 'Service Switching not found', RESPONSE_CODES.NOT_FOUND, 404);
 
+    // BigInt → String convert
     const formattedData = convertBigIntToString(data);
 
-    formattedData.api_name = data.msg_apis?.api_name || null;
-    formattedData.product_name = data.products?.name || null;
+    // Flatten relations
+    const responseData = {
+      ...formattedData,
+      api_name: data.apis?.api_name || null,
+      product_name: data.products?.name || null
+    };
 
-    delete formattedData.msg_apis;
-    delete formattedData.products;
+    // Remove nested objects
+    delete responseData.apis;
+    delete responseData.products;
 
-    return success(res, 'Data fetched successfully', formattedData);
+    return res.status(200).json({
+      success: true,
+      statusCode: 1,
+      message: 'Data fetched successfully',
+      data: responseData
+    });
 
   } catch (err) {
     console.error(err);
