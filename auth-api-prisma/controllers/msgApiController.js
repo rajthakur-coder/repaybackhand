@@ -320,44 +320,49 @@ exports.deleteMsgApi = async (req, res) => {
 // change status of Messaging API
 exports.changeMsgApiStatus = async (req, res) => {
   const id = safeParseInt(req.params.id);
-  if (!id || id <= 0) {
-    return error(res, 'Message API Id is required', RESPONSE_CODES.VALIDATION_ERROR, 422);
+
+  if (!id || isNaN(id) || id <= 0) {
+    return error(res, 'Invalid or missing Message API ID', RESPONSE_CODES.VALIDATION_ERROR, 422);
   }
 
   try {
-    // Fetch the API from DB
+    // Current record fetch karo
     const api = await prisma.msg_apis.findUnique({ where: { id } });
-    if (!api) return error(res, 'Message API Not Found', RESPONSE_CODES.NOT_FOUND, 404);
+    if (!api) {
+      return error(res, 'Message API not found', RESPONSE_CODES.NOT_FOUND, 404);
+    }
 
-    // Toggle status: 'Active' <-> 'Inactive' (case-sensitive)
-    const newStatus = api.status === 'Active' ? 'Inactive' : 'Active';
+    // Toggle logic: agar active hai to inactive, nahi to active
+    const newStatus = api.status.toLowerCase() === 'active' ? 'inactive' : 'active';
 
-    const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
-
-    // Update status in DB
-    await prisma.msg_apis.update({
+    // Update karo DB me
+    const updatedApi = await prisma.msg_apis.update({
       where: { id },
-      data: { status: newStatus, updated_at: updatedAt },
+      data: {
+        status: newStatus, 
+        updated_at: new Date()
+      }
     });
 
-    // Log audit trail
-    await logAuditTrail({
+    // Optional audit trail
+    logAuditTrail({
       table_name: 'msg_apis',
       row_id: id,
       action: 'update',
-      user_id: req.user?.id || null,
+      user_id: req.user?.id ? Number(req.user.id) : null,
       ip_address: req.ip,
-      remark: `Messaging API "${api.api_name}" status changed from "${api.status}" to "${newStatus}"`,
+      remark: `Status toggled to ${newStatus}`,
       updated_by: req.user?.id || null,
       status: newStatus
-    });
+    }).catch(err => console.error('Audit log failed:', err));
+
+    convertBigIntToString(updatedApi);
 
     return success(res, `Message API status changed to ${newStatus}`);
 
   } catch (err) {
-    console.error('toggleMsgApiStatus error:', err);
+    console.error('changeMsgApiStatus error:', err);
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };
-
 
