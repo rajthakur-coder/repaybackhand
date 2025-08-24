@@ -326,20 +326,20 @@ exports.changeMsgApiStatus = async (req, res) => {
   }
 
   try {
-    // Current record fetch karo
+    // Current record fetch
     const api = await prisma.msg_apis.findUnique({ where: { id } });
     if (!api) {
       return error(res, 'Message API not found', RESPONSE_CODES.NOT_FOUND, 404);
     }
 
-    // Toggle logic: agar active hai to inactive, nahi to active
+    // Toggle logic
     const newStatus = api.status.toLowerCase() === 'active' ? 'inactive' : 'active';
 
-    // Update karo DB me
+    // Update DB
     const updatedApi = await prisma.msg_apis.update({
       where: { id },
       data: {
-        status: newStatus, 
+        status: newStatus,
         updated_at: new Date()
       }
     });
@@ -358,11 +358,18 @@ exports.changeMsgApiStatus = async (req, res) => {
 
     convertBigIntToString(updatedApi);
 
-    return success(res, `Message API status changed to ${newStatus}`);
+    // Yahan par success ke saath updated record ka data bhi bhejo
+    return res.status(200).json({
+      success: true,
+      message: `Message API status changed to ${newStatus}`,
+      data: {
+        id: updatedApi.id.toString(),
+        status: updatedApi.status
+      }
+    });
 
   } catch (err) {
     console.error('changeMsgApiStatus error:', err);
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };
-
