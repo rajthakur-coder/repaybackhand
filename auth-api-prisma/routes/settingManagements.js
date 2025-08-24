@@ -19,7 +19,7 @@ const securedRoutes = createSecuredRoutes(authMiddleware, (router) => {
   router.put('/service-switching/update/:id', updateServiceSwitchingValidation, serviceSwitchingController.updateServiceSwitching);
   router.get('/service-switching/byid/:id', serviceSwitchingController.getServiceSwitchingById);
   router.delete('/service-switching/delete/:id', deleteServiceSwitchingValidation, serviceSwitchingController.deleteServiceSwitching);
-  router.put('/service-switching/change-status/:id', changeServiceSwitchingStatusValidation, serviceSwitchingController.changeServiceSwitchingStatus);
+  router.patch('/service-switching/change-status/:id', changeServiceSwitchingStatusValidation, serviceSwitchingController.changeServiceSwitchingStatus);
 
 });
 

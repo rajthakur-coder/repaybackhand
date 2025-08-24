@@ -26,7 +26,7 @@ const securedRoutes = createSecuredRoutes(authMiddleware, (router) => {
   router.get('/msg-apis/byid/:id', getApiByIdValidation, controller.getMsgApiById);
   router.put('/msg-apis/update/:id', updateApiValidation, controller.updateMsgApi);
   router.delete('/msg-apis/delete/:id', deleteApiValidation, controller.deleteMsgApi);
-  router.post('/msg-apis/change-status/:id', controller.changeMsgApiStatus);
+  router.patch('/msg-apis/change-status/:id', controller.changeMsgApiStatus);
 
   // Signatures
   router.post('/signature', addOrUpdateSignatureValidator, signatureController.addOrUpdateSignature);
