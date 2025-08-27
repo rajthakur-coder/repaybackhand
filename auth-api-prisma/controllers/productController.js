@@ -101,10 +101,12 @@ exports.getProductList = async (req, res) => {
     const limit = safeParseInt(req.body.limit, 10);
     const searchValue = (req.body.searchValue || '').trim();
     const statusRaw = req.body.ProductStatus || '';
-    const statusFilter = statusRaw.toLowerCase();
+    const categoryId = req.body.categoryId ? String(req.body.categoryId) : '';
 
+    const statusFilter = statusRaw.toLowerCase();
     const validStatuses = ['active', 'inactive'];
 
+    // where condition banate waqt categoryId bhi check hoga (agar bheja gaya ho)
     const where = {
       AND: [
         searchValue
@@ -112,10 +114,12 @@ exports.getProductList = async (req, res) => {
           : null,
         validStatuses.includes(statusFilter)
           ? { status: { equals: statusFilter, mode: 'insensitive' } }
+          : null,
+        categoryId
+          ? { category_id: safeParseInt(categoryId) }
           : null
       ].filter(Boolean)
     };
-
 
     const [total, filteredCount, data] = await Promise.all([
       prisma.products.count(),
@@ -128,7 +132,6 @@ exports.getProductList = async (req, res) => {
         include: { product_categories: { select: { id: true, name: true } } }
       })
     ]);
-
 
     const formattedData = convertBigIntToString(data).map((p) => ({
       id: String(p.id),
@@ -146,7 +149,6 @@ exports.getProductList = async (req, res) => {
       updated_at: ISTFormat(p.updated_at)
     }));
 
-
     return res.status(200).json({
       success: true,
       statusCode: 1,
@@ -160,6 +162,8 @@ exports.getProductList = async (req, res) => {
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);
   }
 };
+
+
 
 // GET PRODUCT BY ID 
 exports.getProductById = async (req, res) => {

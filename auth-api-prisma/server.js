@@ -13,6 +13,7 @@ const userRoutes = require('./routes/userRoutes');
 const productManagementRoutes = require('./routes/productManagementRoutes');
 const settingManagementRoutes = require('./routes/settingManagements');
 const msgManagementRoutes = require('./routes/msgManagementRoutes');
+const walletRoutes = require('./routes/walletRoutes');
 const path = require("path");
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/v1', authRoutes, userRoutes);
 app.use('/api/v1/product-management', productManagementRoutes);
 app.use('/api/v1/setting-management', settingManagementRoutes);
 app.use('/api/v1/msg-management', msgManagementRoutes);
+app.use('/api/v1/wallet-management', walletRoutes);
 
 
 // Server Start
