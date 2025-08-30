@@ -157,6 +157,7 @@ exports.getProductList = async (req, res) => {
       recordsFiltered: filteredCount,
       data: formattedData
     });
+    
   } catch (err) {
     console.error('getProductList error:', err);
     return error(res, 'Server error', RESPONSE_CODES.FAILED, 500);

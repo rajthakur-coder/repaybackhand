@@ -3,7 +3,6 @@ const prisma = new PrismaClient();
 const { success, error } = require('../utils/response');
 const { RESPONSE_CODES } = require('../utils/helper');
 
-// 1. Get Wallet Details by User ID
 exports.getWalletByUserId = async (req, res) => {
   const id = parseInt(req.user.id);
 
@@ -12,13 +11,17 @@ exports.getWalletByUserId = async (req, res) => {
   }
 
   try {
-    const wallet = await prisma.wallets.findUnique({ where: { user_id: id } });
+    const wallet = await prisma.wallets.update({
+      where: { user_id: id },
+      data: {
+        updated_at: new Date() 
+      }
+    });
 
     if (!wallet) {
       return error(res, 'Wallet not found', RESPONSE_CODES.NOT_FOUND, 404);
     }
 
-    // total balance calculation
     const totalBalance = Number(wallet.balance || 0) + Number(wallet.free_balance || 0);
 
     return res.status(200).json({
@@ -31,10 +34,10 @@ exports.getWalletByUserId = async (req, res) => {
         balance: wallet.balance,
         free_balance: wallet.free_balance,
         lien_balance: wallet.lien_balance,
-        total_balance: totalBalance, // add total balance
-        balance_expire_at: wallet.balance_expire_at, // raw date from DB
-        created_at: wallet.created_at,               // raw date
-        updated_at: wallet.updated_at,               // raw date
+        total_balance: totalBalance,
+        balance_expire_at: wallet.balance_expire_at,
+        created_at: wallet.created_at,
+        updated_at: wallet.updated_at,  // updated timestamp
       }
     });
 

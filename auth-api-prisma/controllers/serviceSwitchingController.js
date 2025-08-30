@@ -20,10 +20,13 @@ exports.addServiceSwitching = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
 
-  const api_id = BigInt(safeParseInt(req.body.api_id));
-  const product_id = BigInt(safeParseInt(req.body.product_id));
+  const api_id = ((req.body.api_id));
+  console.log('API ID:', api_id);
+
+  const product_id = ((req.body.product_id));
   const { api_code, rate, commission_surcharge, flat_per, gst, tds, txn_limit, status } = req.body;
 
+  console.log('Product ID:', product_id);
   try {
     const [apiExists, productExists, existing] = await Promise.all([
       prisma.apis.findUnique({ where: { id: api_id } }),

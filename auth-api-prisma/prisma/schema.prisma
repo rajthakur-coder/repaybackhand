@@ -59,7 +59,6 @@ model msg_apis {
   status     String     @db.VarChar(8)
   created_at DateTime   @db.Timestamp(6)
   updated_at DateTime   @db.Timestamp(6)
-  serial_no  Int?
   msg_logs   msg_logs[]
 }
 
@@ -80,7 +79,6 @@ model msg_contents {
   keywords             String?
   created_at           DateTime @db.Timestamp(6)
   updated_at           DateTime @db.Timestamp(6)
-  serial_no            Int?
 }
 
 model msg_logs {
@@ -177,7 +175,6 @@ model service_switchings {
   status               String   @default("Active") @db.VarChar(50)
   created_at           DateTime @db.Timestamp(6)
   updated_at           DateTime @db.Timestamp(6)
-  serial_no            Int?
   apis                 apis     @relation(fields: [api_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_api")
   products             products @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_product")
 }

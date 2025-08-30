@@ -170,7 +170,7 @@ exports.updateProductCategory = async (req, res) => {
         });
         if (duplicateName) return error(res, 'This Product Category already exists', RESPONSE_CODES.DUPLICATE, 409);
 
-        const slug = `${slugify(name, { lower: true })}-${Date.now()}`;
+        const slug = `${slugify(name, { lower: true })}`;
         const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
 
         await prisma.product_categories.update({
