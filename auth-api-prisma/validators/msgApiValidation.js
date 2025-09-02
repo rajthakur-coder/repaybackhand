@@ -20,7 +20,7 @@ const methodRule = body('method')
 
 // Status
 const statusRule = body('status')
-  .isIn(['active', 'inactive']).withMessage('Status must be active or inactive');
+  .isIn(['Active', 'Inactive']).withMessage('Status must be Active or Inactive');
 
 // API Name
 const apiNameRule = body('api_name')
