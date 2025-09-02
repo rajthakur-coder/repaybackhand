@@ -154,24 +154,38 @@ exports.getProductCategoryById = async (req, res) => {
 // Update category
 exports.updateProductCategory = async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
+    if (!errors.isEmpty()) 
+        return error(res, errors.array()[0].msg, RESPONSE_CODES.VALIDATION_ERROR, 422);
 
     const id = safeParseInt(req.params.id);
     const { name, status } = req.body;
 
-    if (!id || isNaN(id) || id <= 0) return error(res, 'Invalid or missing Product Category ID', RESPONSE_CODES.VALIDATION_ERROR, 422);
+    if (!id || isNaN(id) || id <= 0) 
+        return error(res, 'Invalid or missing Product Category ID', RESPONSE_CODES.VALIDATION_ERROR, 422);
 
     try {
         const category = await prisma.product_categories.findUnique({ where: { id } });
-        if (!category) return error(res, 'Product Category not found', RESPONSE_CODES.NOT_FOUND, 404);
+        if (!category) 
+            return error(res, 'Product Category not found', RESPONSE_CODES.NOT_FOUND, 404);
 
+        // Duplicate name check
         const duplicateName = await prisma.product_categories.findFirst({
             where: { name: { equals: name, mode: 'insensitive' }, id: { not: id } },
         });
-        if (duplicateName) return error(res, 'This Product Category already exists', RESPONSE_CODES.DUPLICATE, 409);
+        if (duplicateName) 
+            return error(res, 'This Product Category already exists', RESPONSE_CODES.DUPLICATE, 409);
 
-        const slug = `${slugify(name, { lower: true })}`;
+        const slug = slugify(name, { lower: true });
         const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
+
+        // 🟢 Check if data is same as old
+        if (
+            category.name === name &&
+            category.slug === slug &&
+            category.status === status
+        ) {
+            return success(res, 'Product Category already updated');
+        }
 
         await prisma.product_categories.update({
             where: { id },
