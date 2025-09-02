@@ -333,7 +333,7 @@ exports.changeMsgApiStatus = async (req, res) => {
     }
 
     // Toggle logic
-    const newStatus = api.status.toLowerCase() === 'active' ? 'inactive' : 'active';
+    const newStatus = api.status.toLowerCase() === 'Active' ? 'Inactive' : 'Active';
 
     // Update DB
     const updatedApi = await prisma.msg_apis.update({
