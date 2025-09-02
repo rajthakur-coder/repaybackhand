@@ -55,10 +55,12 @@ model msg_apis {
   api_type   String     @db.VarChar(10)
   base_url   String
   params     String?
+  serial_no  Int?
   method     String     @db.VarChar(6)
   status     String     @db.VarChar(8)
   created_at DateTime   @db.Timestamp(6)
   updated_at DateTime   @db.Timestamp(6)
+
   msg_logs   msg_logs[]
 }
 

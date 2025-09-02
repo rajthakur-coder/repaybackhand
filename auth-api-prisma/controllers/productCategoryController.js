@@ -172,19 +172,19 @@ exports.updateProductCategory = async (req, res) => {
         const duplicateName = await prisma.product_categories.findFirst({
             where: { name: { equals: name, mode: 'insensitive' }, id: { not: id } },
         });
-        if (duplicateName) 
-            return error(res, 'This Product Category already exists', RESPONSE_CODES.DUPLICATE, 409);
+        // if (duplicateName) 
+        //     return error(res, 'This Product Category already exists', RESPONSE_CODES.DUPLICATE, 409);
 
         const slug = slugify(name, { lower: true });
         const updatedAt = dayjs().tz('Asia/Kolkata').toDate();
 
-        // 🟢 Check if data is same as old
+        //  Check if data is same as old
         if (
             category.name === name &&
             category.slug === slug &&
             category.status === status
         ) {
-            return success(res, 'Product Category already updated');
+            return error(res, 'This Product Category already exists', RESPONSE_CODES.DUPLICATE, 409);
         }
 
         await prisma.product_categories.update({
