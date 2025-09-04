@@ -177,7 +177,7 @@ exports.loginUser = async (req, res) => {
       return error(res, "Unauthorized role", RESPONSE_CODES.FAILED, 403);
     }
 
-    if (user.status !== "active") {
+    if (user.status !== "Active") {
       return error(res, "Account not active", RESPONSE_CODES.FAILED, 403);
     }
 
@@ -191,7 +191,7 @@ exports.loginUser = async (req, res) => {
         token,
         token_type: "app",
         expires_at: expiresAt,
-        status: "active",
+        status: "Active",
         created_at: new Date(),
       },
     });
