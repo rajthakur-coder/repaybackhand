@@ -123,7 +123,7 @@ exports.loginUser = async (req, res) => {
             password: tempUser.password,
             mobile_no: tempUser.mobile_no,
             role: tempUser.role || "user",
-            status: "active",
+            status: "Active",
             otp_status: "verified",
             created_at: now,
             updated_at: now,
